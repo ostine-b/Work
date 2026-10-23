@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Manager Dashboard — HostelHub</title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+</head>
+<body>
+
+<nav class="navbar">
+  <a href="/index.html" class="navbar-brand"><span>🏠</span> HostelHub</a>
+  <div class="navbar-links">
+    <span class="nav-user" id="nav-user"></span>
+    <button onclick="logout()" class="btn btn-outline btn-sm">Logout</button>
+  </div>
+</nav>
+
+<div class="dash-layout">
+
+  <!-- SIDEBAR -->
+  <aside class="dash-sidebar">
+    <h3>Manager Menu</h3>
+    <button class="dash-nav-item active" id="nav-overview"  onclick="showSection('overview')">
+      <span class="icon">📊</span> Overview
+    </button>
+    <button class="dash-nav-item" id="nav-hostels"   onclick="showSection('hostels')">
+      <span class="icon">🏨</span> My Hostels
+    </button>
+    <button class="dash-nav-item" id="nav-bookings"  onclick="showSection('bookings')">
+      <span class="icon">📋</span> Booking Requests
+      <span id="pending-badge" class="badge badge-warning hidden" style="margin-left:auto;"></span>
+    </button>
+    <button class="dash-nav-item" id="nav-messages"  onclick="window.location='/pages/messages.html'">
+      <span class="icon">💬</span> Messages
+      <span id="unread-badge" class="badge badge-danger hidden" style="margin-left:auto;"></span>
+    </button>
+    <button class="dash-nav-item" id="nav-profile"   onclick="showSection('profile')">
+      <span class="icon">👤</span> Profile
+    </button>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="dash-main">
+
+    <!-- OVERVIEW -->
+    <section id="section-overview">
+      <div class="dash-header">
+        <h2 id="welcome-msg">Welcome back!</h2>
+        <p>Here's a summary of your hostels.</p>
+      </div>
+      <div class="stats-grid" id="stats"><div class="spinner"></div></div>
+      <div class="d-flex justify-between align-center mt-3 mb-2">
+        <h3>Your Hostels</h3>
+        <a href="/pages/register-hostel.html" class="btn btn-secondary btn-sm">+ Add Hostel</a>
+      </div>
+      <div id="overview-hostels"><div class="spinner"></div></div>
+    </section>
+
+    <!-- MY HOSTELS -->
+    <section id="section-hostels" class="hidden">
+      <div class="dash-header d-flex justify-between align-center">
+        <div><h2>My Hostels</h2><p>Manage your registered hostels.</p></div>
+        <a href="/pages/register-hostel.html" class="btn btn-secondary">+ Register Hostel</a>
+      </div>
+      <div id="hostels-loading" class="loading-overlay"><div class="spinner"></div></div>
+      <div id="hostels-grid" class="grid-2 hidden"></div>
+      <p id="hostels-empty" class="text-center text-muted hidden" style="padding:2rem;">
+        No hostels yet. <a href="/pages/register-hostel.html">Register one →</a>
+      </p>
+    </section>
+
+    <!-- BOOKING REQUESTS -->
+    <section id="section-bookings" class="hidden">
+      <div class="dash-header">
+        <h2>Booking Requests</h2>
+        <p>Review and respond to student booking requests.</p>
+      </div>
+      <div class="form-group" style="max-width:300px;">
+        <label>Filter by Hostel</label>
+        <select id="booking-hostel-filter" onchange="loadBookingRequests()">
+          <option value="">All Hostels</option>
+        </select>
+      </div>
+      <div id="bookings-loading" class="loading-overlay"><div class="spinner"></div></div>
+      <div id="bookings-table" class="hidden">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Student</th><th>Room</th><th>Hostel</th><th>Price</th><th>Status</th><th>Date</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="bookings-body"></tbody>
+          </table>
+        </div>
+      </div>
+      <p id="bookings-empty" class="text-center text-muted hidden" style="padding:2rem;">No booking requests yet.</p>
+    </section>
+
+    <!-- PROFILE -->
+    <section id="section-profile" class="hidden">
+      <div class="dash-header"><h2>My Profile</h2><p>Your manager account details.</p></div>
+      <div class="card" style="max-width:480px;padding:1.5rem;">
+        <div id="profile-info"></div>
+        <div id="profile-alert" class="mt-2"></div>
+        <form id="profile-form" onsubmit="updateProfile(event)" style="margin-top:1.2rem;">
+          <div class="form-group"><label>Full Name</label><input type="text" id="p-name" required /></div>
+          <div class="form-group"><label>Phone Number</label><input type="tel" id="p-phone" /></div>
+          <div class="form-group"><label>Email (read-only)</label><input type="email" id="p-email" readonly style="background:var(--bg);" /></div>
+          <button type="submit" class="btn btn-secondary" id="profile-btn">Save Changes</button>
+        </form>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- EDIT HOSTEL MODAL -->
+<div class="modal-overlay" id="edit-hostel-modal">
+  <div class="modal" style="max-width:620px;">
+    <div class="modal-header">
+      <span class="modal-title">Edit Hostel</span>
+      <button class="modal-close" onclick="closeEditModal()">×</button>
+    </div>
+    <div id="edit-alert"></div>
+    <form id="edit-form" onsubmit="submitEditHostel(event)">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;">
+        <div class="form-group" style="grid-column:1/-1;">
+          <label>Hostel Name *</label><input type="text" id="e-name" required />
+        </div>
+        <div class="form-group" style="grid-column:1/-1;">
+          <label>Description</label><textarea id="e-desc"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Address *</label><input type="text" id="e-address" required />
+        </div>
+        <div class="form-group">
+          <label>City *</label><input type="text" id="e-city" required />
+        </div>
+        <div class="form-group">
+          <label>Price (GHS/mo) *</label><input type="number" id="e-price" min="0" step="0.01" required />
+        </div>
+        <div class="form-group">
+          <label>Amenities</label><input type="text" id="e-amenities" />
+        </div>
+        <div class="form-group"><label>Latitude</label><input type="number" id="e-lat" step="any" /></div>
+        <div class="form-group"><label>Longitude</label><input type="number" id="e-lng" step="any" /></div>
+      </div>
+      <div id="edit-map" style="height:220px;border-radius:var(--radius);border:1px solid var(--border);margin-bottom:1rem;"></div>
+      <div style="display:flex;gap:.75rem;">
+        <button type="button" class="btn btn-outline btn-full" onclick="closeEditModal()">Cancel</button>
+        <button type="submit" class="btn btn-secondary btn-full" id="edit-btn">Save Changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ADD ROOM MODAL (within dashboard) -->
+<div class="modal-overlay" id="add-room-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Add Room</span>
+      <button class="modal-close" onclick="closeAddRoomModal()">×</button>
+    </div>
+    <div id="add-room-alert"></div>
+    <form id="add-room-form" onsubmit="submitAddRoom(event)">
+      <input type="hidden" id="ar-hostel-id" />
+      <div class="form-group"><label>Room Number *</label><input type="text" id="ar-number" required /></div>
+      <div class="form-group">
+        <label>Room Type *</label>
+        <select id="ar-type" required>
+          <option value="">Select…</option>
+          <option value="single">Single</option>
+          <option value="double">Double</option>
+          <option value="triple">Triple</option>
+          <option value="dormitory">Dormitory</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Capacity</label><input type="number" id="ar-capacity" value="1" min="1" /></div>
+      <div class="form-group"><label>Price (GHS/mo) *</label><input type="number" id="ar-price" min="0" step="0.01" required /></div>
+      <div class="form-group"><label>Description</label><textarea id="ar-desc" style="min-height:60px;"></textarea></div>
+      <div class="form-group">
+        <label>Room Photo</label>
+        <div class="img-upload-wrap" onclick="document.getElementById('ar-image').click()">
+          <div id="ar-hint">📷 Click to upload</div>
+          <input type="file" id="ar-image" accept="image/*" onchange="previewArImage(this)" />
+          <img id="ar-preview" class="img-preview" src="" alt="" />
+        </div>
+      </div>
+      <div style="display:flex;gap:.75rem;margin-top:1rem;">
+        <button type="button" class="btn btn-outline btn-full" onclick="closeAddRoomModal()">Cancel</button>
+        <button type="submit" class="btn btn-secondary btn-full" id="add-room-btn">Add Room</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- VIEW ROOMS MODAL -->
+<div class="modal-overlay" id="rooms-modal">
+  <div class="modal" style="max-width:680px;">
+    <div class="modal-header">
+      <span class="modal-title" id="rooms-modal-title">Rooms</span>
+      <button class="modal-close" onclick="document.getElementById('rooms-modal').classList.remove('open')">×</button>
+    </div>
+    <div id="rooms-modal-body" class="grid-2" style="margin-top:.5rem;"></div>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  if (!requireAuth('manager')) throw new Error('stop');
+  const ME = getUser();
+  document.getElementById('welcome-msg').textContent = `Welcome back, ${ME.name}! 👋`;
+  document.getElementById('nav-user').textContent = `👋 ${ME.name}`;
+
+  let myHostels = [];
+  let editMap, editMarker, editingHostelId;
+
+  function showSection(name) {
+    ['overview','hostels','bookings','profile'].forEach(s => {
+      document.getElementById(`section-${s}`).classList.toggle('hidden', s !== name);
+      document.getElementById(`nav-${s}`)?.classList.toggle('active', s === name);
+    });
+    if (name === 'hostels')  loadMyHostels();
+    if (name === 'bookings') { loadBookingHostelFilter(); loadBookingRequests(); }
+    if (name === 'profile')  loadProfile();
+  }
+
+  // ===== OVERVIEW =====
+  async function loadOverview() {
+    try {
+      const hostels = await api.get('/hostels/my');
+      myHostels = hostels;
+      const totalRooms = hostels.reduce((a, h) => a + (h.total_rooms || 0), 0);
+      const availRooms = hostels.reduce((a, h) => a + (h.available_rooms || 0), 0);
+
+      document.getElementById('stats').innerHTML = `
+        <div class="stat-card"><div class="stat-val">${hostels.length}</div><div class="stat-lbl">My Hostels</div></div>
+        <div class="stat-card"><div class="stat-val">${totalRooms}</div><div class="stat-lbl">Total Rooms</div></div>
+        <div class="stat-card"><div class="stat-val" style="color:var(--success);">${availRooms}</div><div class="stat-lbl">Available Rooms</div></div>
+      `;
+
+      document.getElementById('overview-hostels').innerHTML = hostels.length
+        ? hostels.map(h => hostelCard(h)).join('')
+        : '<p class="text-muted">No hostels yet. <a href="/pages/register-hostel.html">Register one →</a></p>';
+    } catch (err) {
+      document.getElementById('stats').innerHTML = `<p class="text-danger">Failed to load data.</p>`;
+    }
+  }
+
+  function hostelCard(h) {
+    return `
+      <div class="card" style="margin-bottom:1rem;padding:1.1rem;">
+        <div class="d-flex justify-between align-center">
+          <div>
+            <strong style="font-size:1.05rem;">${h.name}</strong>
+            <div style="font-size:.85rem;color:var(--text-muted);">📍 ${h.address}, ${h.city}</div>
+          </div>
+          <div class="d-flex gap-1">
+            <span class="badge ${h.available_rooms > 0 ? 'badge-success':'badge-danger'}">
+              ${h.available_rooms || 0}/${h.total_rooms || 0} rooms
+            </span>
+          </div>
+        </div>
+        <div class="d-flex gap-1 mt-2" style="flex-wrap:wrap;">
+          <button class="btn btn-sm btn-outline" onclick="openViewRooms('${h.id}','${escHtml(h.name)}')">🛏️ Rooms</button>
+          <button class="btn btn-sm btn-primary"  onclick="openAddRoomModal('${h.id}')">+ Room</button>
+          <button class="btn btn-sm btn-outline"  onclick="openEditModal('${h.id}')">✏️ Edit</button>
+          <button class="btn btn-sm btn-danger"   onclick="deleteHostel('${h.id}','${escHtml(h.name)}')">🗑️ Delete</button>
+          <a href="/pages/hostel-detail.html?id=${h.id}" class="btn btn-sm btn-outline" target="_blank">👁️ View</a>
+        </div>
+      </div>`;
+  }
+
+  // ===== MY HOSTELS =====
+  async function loadMyHostels() {
+    const grid = document.getElementById('hostels-grid');
+    const loading = document.getElementById('hostels-loading');
+    const empty = document.getElementById('hostels-empty');
+    loading.classList.remove('hidden'); grid.classList.add('hidden'); empty.classList.add('hidden');
+
+    try {
+      const hostels = await api.get('/hostels/my');
+      myHostels = hostels;
+      loading.classList.add('hidden');
+      if (!hostels.length) { empty.classList.remove('hidden'); return; }
+
+      grid.innerHTML = hostels.map(h => `
+        <div class="card">
+          <img class="card-img" src="${h.image_url || ''}" onerror="this.style.background='#e2e8f0';this.src=''" alt="${h.name}" />
+          <div class="card-body">
+            <div class="d-flex justify-between align-center mb-1">
+              <h3 class="card-title" style="margin:0;">${h.name}</h3>
+              <span class="badge ${h.available_rooms > 0 ? 'badge-success':'badge-danger'}">
+                ${h.available_rooms || 0}/${h.total_rooms || 0}
+              </span>
+            </div>
+            <p class="card-text">📍 ${h.address}, ${h.city}</p>
+            <p class="card-text">GHS ${parseFloat(h.price_per_month).toLocaleString()}/mo</p>
+            <div class="d-flex gap-1 mt-2" style="flex-wrap:wrap;">
+              <button class="btn btn-sm btn-primary"  onclick="openAddRoomModal('${h.id}')">+ Room</button>
+              <button class="btn btn-sm btn-outline"  onclick="openViewRooms('${h.id}','${escHtml(h.name)}')">🛏️ Rooms</button>
+              <button class="btn btn-sm btn-outline"  onclick="openEditModal('${h.id}')">✏️ Edit</button>
+              <button class="btn btn-sm btn-danger"   onclick="deleteHostel('${h.id}','${escHtml(h.name)}')">🗑️</button>
+            </div>
+          </div>
+        </div>`).join('');
+      grid.classList.remove('hidden');
+    } catch (err) {
+      loading.classList.add('hidden');
+      empty.textContent = 'Failed to load hostels.';
+      empty.classList.remove('hidden');
+    }
+  }
+
+  // ===== EDIT HOSTEL =====
+  async function openEditModal(hostelId) {
+    editingHostelId = hostelId;
+    clearAlert(document.getElementById('edit-alert'));
+
+    try {
+      const hostel = await api.get(`/hostels/${hostelId}`);
+      document.getElementById('e-name').value     = hostel.name;
+      document.getElementById('e-desc').value     = hostel.description || '';
+      document.getElementById('e-address').value  = hostel.address;
+      document.getElementById('e-city').value     = hostel.city;
+      document.getElementById('e-price').value    = hostel.price_per_month;
+      document.getElementById('e-amenities').value= hostel.amenities || '';
+      document.getElementById('e-lat').value      = hostel.latitude || '';
+      document.getElementById('e-lng').value      = hostel.longitude || '';
+
+      document.getElementById('edit-hostel-modal').classList.add('open');
+
+      setTimeout(() => {
+        if (editMap) { editMap.remove(); editMap = null; editMarker = null; }
+        const lat = hostel.latitude || 5.6037;
+        const lng = hostel.longitude || -0.1870;
+        editMap = L.map('edit-map').setView([lat, lng], hostel.latitude ? 15 : 12);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(editMap);
+        if (hostel.latitude) editMarker = L.marker([lat, lng]).addTo(editMap);
+        editMap.on('click', e => {
+          document.getElementById('e-lat').value = e.latlng.lat.toFixed(6);
+          document.getElementById('e-lng').value = e.latlng.lng.toFixed(6);
+          if (editMarker) editMarker.setLatLng(e.latlng);
+          else editMarker = L.marker(e.latlng).addTo(editMap);
+        });
+      }, 100);
+    } catch (err) {
+      alert('Failed to load hostel: ' + err.message);
+    }
+  }
+
+  function closeEditModal() {
+    document.getElementById('edit-hostel-modal').classList.remove('open');
+  }
+
+  async function submitEditHostel(e) {
+    e.preventDefault();
+    const btn = document.getElementById('edit-btn');
+    const alertBox = document.getElementById('edit-alert');
+    clearAlert(alertBox);
+    setLoading(btn, true);
+
+    const fd = new FormData();
+    fd.append('name',            document.getElementById('e-name').value.trim());
+    fd.append('description',     document.getElementById('e-desc').value.trim());
+    fd.append('address',         document.getElementById('e-address').value.trim());
+    fd.append('city',            document.getElementById('e-city').value.trim());
+    fd.append('price_per_month', document.getElementById('e-price').value);
+    fd.append('amenities',       document.getElementById('e-amenities').value.trim());
+    const lat = document.getElementById('e-lat').value;
+    const lng = document.getElementById('e-lng').value;
+    if (lat) fd.append('latitude',  lat);
+    if (lng) fd.append('longitude', lng);
+
+    try {
+      await api.upload(`/hostels/${editingHostelId}`, fd, 'PUT');
+      closeEditModal();
+      showAlert(document.querySelector('.dash-main'), 'Hostel updated successfully.', 'success');
+      loadMyHostels();
+      loadOverview();
+    } catch (err) {
+      showAlert(alertBox, err.message);
+      setLoading(btn, false, 'Save Changes');
+    }
+  }
+
+  async function deleteHostel(id, name) {
+    if (!confirm(`Delete hostel "${name}"? This will also remove all its rooms and bookings.`)) return;
+    try {
+      await api.delete(`/hostels/${id}`);
+      loadMyHostels();
+      loadOverview();
+    } catch (err) { alert('Failed to delete: ' + err.message); }
+  }
+
+  // ===== VIEW ROOMS =====
+  async function openViewRooms(hostelId, hostelName) {
+    document.getElementById('rooms-modal-title').textContent = `Rooms — ${hostelName}`;
+    document.getElementById('rooms-modal-body').innerHTML = '<div class="loading-overlay"><div class="spinner"></div></div>';
+    document.getElementById('rooms-modal').classList.add('open');
+
+    try {
+      const rooms = await api.get(`/rooms/hostel/${hostelId}`);
+      document.getElementById('rooms-modal-body').innerHTML = rooms.length
+        ? rooms.map(r => `
+          <div class="room-card">
+            ${r.image_url
+              ? `<img src="${r.image_url}" style="width:100%;height:140px;object-fit:cover;" />`
+              : `<div style="height:100px;display:flex;align-items:center;justify-content:center;background:#e2e8f0;font-size:2rem;">🛏️</div>`}
+            <div class="room-info">
+              <div class="d-flex justify-between">
+                <strong>Room ${r.room_number}</strong>
+                <span class="badge ${r.is_available ? 'badge-success':'badge-danger'}">${r.is_available ? 'Free':'Taken'}</span>
+              </div>
+              <p style="font-size:.82rem;color:var(--text-muted);text-transform:capitalize;">${r.room_type} · ${r.capacity}p</p>
+              <div class="room-price">GHS ${parseFloat(r.price_per_month).toLocaleString()}<small>/mo</small></div>
+              <div class="d-flex gap-1 mt-1">
+                <button class="btn btn-sm btn-outline"
+                  onclick="toggleAvailability('${r.id}',${r.is_available})">${r.is_available ? 'Mark Taken':'Mark Free'}</button>
+                <button class="btn btn-sm btn-danger" onclick="deleteRoom('${r.id}','${hostelId}','${hostelName}')">🗑️</button>
+              </div>
+            </div>
+          </div>`).join('')
+        : '<p class="text-muted text-center" style="padding:2rem;grid-column:1/-1;">No rooms added yet.</p>';
+    } catch (err) {
+      document.getElementById('rooms-modal-body').innerHTML = `<p class="text-danger">Failed to load rooms: ${err.message}</p>`;
+    }
+  }
+
+  async function toggleAvailability(roomId, currentState) {
+    try {
+      await api.put(`/rooms/${roomId}`, { is_available: currentState ? 'false' : 'true' });
+      // Reload current modal
+      const title = document.getElementById('rooms-modal-title').textContent.replace('Rooms — ','');
+      const hostel = myHostels.find(h => h.name === title);
+      if (hostel) openViewRooms(hostel.id, hostel.name);
+    } catch (err) { alert('Failed: ' + err.message); }
+  }
+
+  async function deleteRoom(roomId, hostelId, hostelName) {
+    if (!confirm('Delete this room?')) return;
+    try {
+      await api.delete(`/rooms/${roomId}`);
+      openViewRooms(hostelId, hostelName);
+    } catch (err) { alert('Failed: ' + err.message); }
+  }
+
+  // ===== ADD ROOM =====
+  function openAddRoomModal(hostelId) {
+    document.getElementById('ar-hostel-id').value = hostelId;
+    document.getElementById('add-room-form').reset();
+    document.getElementById('ar-preview').classList.remove('show');
+    document.getElementById('ar-hint').style.display = '';
+    clearAlert(document.getElementById('add-room-alert'));
+    document.getElementById('add-room-modal').classList.add('open');
+  }
+  function closeAddRoomModal() { document.getElementById('add-room-modal').classList.remove('open'); }
+
+  function previewArImage(input) {
+    if (!input.files[0]) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = document.getElementById('ar-preview');
+      img.src = e.target.result; img.classList.add('show');
+      document.getElementById('ar-hint').style.display = 'none';
+    };
+    reader.readAsDataURL(input.files[0]);
+  }
+
+  async function submitAddRoom(e) {
+    e.preventDefault();
+    const btn = document.getElementById('add-room-btn');
+    const alertBox = document.getElementById('add-room-alert');
+    clearAlert(alertBox);
+    setLoading(btn, true);
+
+    const fd = new FormData();
+    fd.append('hostel_id',       document.getElementById('ar-hostel-id').value);
+    fd.append('room_number',     document.getElementById('ar-number').value.trim());
+    fd.append('room_type',       document.getElementById('ar-type').value);
+    fd.append('capacity',        document.getElementById('ar-capacity').value);
+    fd.append('price_per_month', document.getElementById('ar-price').value);
+    fd.append('description',     document.getElementById('ar-desc').value.trim());
+    const img = document.getElementById('ar-image').files[0];
+    if (img) fd.append('image', img);
+
+    try {
+      await api.upload('/rooms', fd);
+      closeAddRoomModal();
+      showAlert(document.querySelector('.dash-main'), 'Room added successfully.', 'success');
+      loadMyHostels(); loadOverview();
+    } catch (err) {
+      showAlert(alertBox, err.message);
+      setLoading(btn, false, 'Add Room');
+    }
+  }
+
+  // ===== BOOKING REQUESTS =====
+  async function loadBookingHostelFilter() {
+    const sel = document.getElementById('booking-hostel-filter');
+    if (sel.options.length > 1) return; // already loaded
+    try {
+      const hostels = await api.get('/hostels/my');
+      myHostels = hostels;
+      hostels.forEach(h => {
+        const opt = document.createElement('option');
+        opt.value = h.id; opt.textContent = h.name;
+        sel.appendChild(opt);
+      });
+    } catch {}
+  }
+
+  async function loadBookingRequests() {
+    const hostelId = document.getElementById('booking-hostel-filter').value;
+    const loading = document.getElementById('bookings-loading');
+    const table   = document.getElementById('bookings-table');
+    const empty   = document.getElementById('bookings-empty');
+    loading.classList.remove('hidden'); table.classList.add('hidden'); empty.classList.add('hidden');
+
+    try {
+      const targets = hostelId
+        ? [hostelId]
+        : (myHostels.length ? myHostels.map(h => h.id) : (await api.get('/hostels/my')).map(h => { myHostels.push(h); return h.id; }));
+
+      const all = (await Promise.all(targets.map(id => api.get(`/rooms/bookings/hostel/${id}`).catch(() => [])))).flat();
+      loading.classList.add('hidden');
+
+      if (!all.length) { empty.classList.remove('hidden'); return; }
+
+      // Count pending for badge
+      const pendingCount = all.filter(b => b.status === 'pending').length;
+      const badge = document.getElementById('pending-badge');
+      if (pendingCount > 0) { badge.textContent = pendingCount; badge.classList.remove('hidden'); }
+
+      document.getElementById('bookings-body').innerHTML = all.map(b => `
+        <tr>
+          <td>
+            <strong>${b.student_name}</strong><br>
+            <small class="text-muted">${b.student_email}</small>
+            ${b.student_phone ? `<br><small>${b.student_phone}</small>` : ''}
+          </td>
+          <td>Room ${b.room_number} <small class="text-muted">(${b.room_type})</small></td>
+          <td>${myHostels.find(h => h.id === b.hostel_id)?.name || '—'}</td>
+          <td>GHS ${parseFloat(b.price_per_month || 0).toLocaleString()}</td>
+          <td><span class="badge ${statusBadge(b.status)}">${b.status}</span></td>
+          <td>${formatDate(b.created_at)}</td>
+          <td>
+            ${b.status === 'pending' ? `
+              <button class="btn btn-sm btn-success" onclick="respondBooking('${b.id}','approved')">✓ Approve</button>
+              <button class="btn btn-sm btn-danger"  onclick="respondBooking('${b.id}','rejected')">✗ Reject</button>
+            ` : `<button class="btn btn-sm btn-outline" onclick="contactStudent('${b.student_id}')">💬 Message</button>`}
+          </td>
+        </tr>`).join('');
+      table.classList.remove('hidden');
+    } catch (err) {
+      loading.classList.add('hidden');
+      empty.textContent = 'Failed to load bookings.';
+      empty.classList.remove('hidden');
+    }
+  }
+
+  async function respondBooking(bookingId, status) {
+    try {
+      await api.put(`/rooms/bookings/${bookingId}`, { status });
+      loadBookingRequests();
+    } catch (err) { alert('Failed: ' + err.message); }
+  }
+
+  function contactStudent(studentId) {
+    window.location.href = `/pages/messages.html?to=${studentId}`;
+  }
+
+  // ===== PROFILE =====
+  function loadProfile() {
+    document.getElementById('p-name').value  = ME.name;
+    document.getElementById('p-phone').value = ME.phone || '';
+    document.getElementById('p-email').value = ME.email;
+    document.getElementById('profile-info').innerHTML = `
+      <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem;">
+        <div class="conv-avatar" style="width:52px;height:52px;font-size:1.4rem;background:var(--secondary);">${avatarInitial(ME.name)}</div>
+        <div><div style="font-weight:700;font-size:1.1rem;">${ME.name}</div>
+          <span class="badge badge-secondary">Manager</span>
+        </div>
+      </div>`;
+  }
+
+  async function updateProfile(e) {
+    e.preventDefault();
+    const btn = document.getElementById('profile-btn');
+    setLoading(btn, true);
+    setTimeout(() => {
+      const updated = { ...ME, name: document.getElementById('p-name').value.trim(), phone: document.getElementById('p-phone').value.trim() };
+      localStorage.setItem('hostel_user', JSON.stringify(updated));
+      showAlert(document.getElementById('profile-alert'), 'Profile updated.', 'success');
+      setLoading(btn, false, 'Save Changes');
+    }, 600);
+  }
+
+  function statusBadge(s) {
+    return { pending:'badge-warning', approved:'badge-success', rejected:'badge-danger' }[s] || 'badge-info';
+  }
+
+  function escHtml(str) {
+    return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // Unread messages
+  async function checkUnread() {
+    try {
+      const { count } = await api.get('/messages/unread/count');
+      const b = document.getElementById('unread-badge');
+      if (count > 0) { b.textContent = count; b.classList.remove('hidden'); }
+      else b.classList.add('hidden');
+    } catch {}
+  }
+
+  // Init
+  loadOverview();
+  checkUnread();
+  setInterval(checkUnread, 15000);
+</script>
+</body>
+</html>

@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+backend/node_modules/
+frontend/node_modules/
+
+# Environment variables
+.env
+.env.local
+
+# Database
+backend/*.db
+backend/*.db-*
+backend/hostel.db.lock/
+
+# Uploads
+backend/uploads/
+
+# Logs
+*.log
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Kiro system files (outside project root)
+../.trust-migration.json
+../argv.json
+../extensions/
+../logs/
+../sessions/
+../session-index/
+../settings/
+../workspace-roots/

@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HostelHub — Find Your Perfect Hostel</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+
+<!-- NAVBAR -->
+<nav class="navbar">
+  <a href="/index.html" class="navbar-brand"><span>🏠</span><span class="brand-text">HostelHub</span></a>
+  <div class="navbar-links">
+    <span class="nav-user" id="nav-user"></span>
+    <a href="/pages/student-login.html" id="nav-login">Sign In</a>
+    <a href="#" id="nav-dashboard" class="hidden">Dashboard</a>
+    <button onclick="logout()" id="nav-logout" class="btn btn-outline btn-sm hidden">Logout</button>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="container">
+    <h1 class="display">Find Your Perfect Hostel</h1>
+    <p>Browse verified hostels, connect with managers, and secure your room — all in one place.</p>
+    <div class="hero-btns">
+      <a href="/pages/student-login.html" class="btn btn-primary btn-lg">I'm a Student</a>
+      <a href="/pages/manager-login.html" class="btn btn-outline btn-lg">I'm a Manager</a>
+    </div>
+  </div>
+</section>
+
+<!-- SEARCH -->
+<section class="section" style="padding:2rem 0;">
+  <div class="container">
+    <div class="search-bar" id="search-bar">
+      <input type="text" id="search-input" placeholder="Search by hostel name or address…" />
+      <input type="text" id="city-input" placeholder="City…" style="max-width:180px;" />
+      <button class="btn btn-primary" onclick="searchHostels()">🔍 Search</button>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURED HOSTELS -->
+<section class="section" style="padding-top:0;">
+  <div class="container">
+    <h2 class="mb-2">Available Hostels</h2>
+    <div id="hostels-loading" class="loading-overlay"><div class="spinner"></div></div>
+    <div id="hostels-grid" class="grid-2 hidden"></div>
+    <p id="hostels-empty" class="text-center text-muted hidden" style="padding:3rem 0;">No hostels found. Check back soon!</p>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="section features">
+  <div class="container">
+    <h2 class="text-center mb-2">Why HostelHub?</h2>
+    <div class="grid-3" style="margin-top:1.5rem;">
+      <div class="feature-item">
+        <div class="feature-icon">🔍</div>
+        <h3>Easy Search</h3>
+        <p>Filter hostels by city, price and availability in seconds.</p>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">💬</div>
+        <h3>Direct Messaging</h3>
+        <p>Chat directly with hostel managers before you commit.</p>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">📍</div>
+        <h3>See the Location</h3>
+        <p>Interactive maps show you exactly where every hostel is.</p>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🛏️</div>
+        <h3>Room Gallery</h3>
+        <p>View photos of available rooms before making a decision.</p>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">✅</div>
+        <h3>Booking Management</h3>
+        <p>Submit booking requests and track their status online.</p>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🔒</div>
+        <h3>Secure & Verified</h3>
+        <p>All managers are registered and accounts are protected.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <p>© 2026 HostelHub. All rights reserved.</p>
+  <p style="margin-top:.4rem;"><a href="/pages/student-login.html">Students</a> · <a href="/pages/manager-login.html">Managers</a></p>
+  <p class="footer-admin" style="margin-top:.6rem;"><a href="/pages/admin-login.html">Administration</a></p>
+</footer>
+
+<script src="/js/api.js"></script>
+<script>
+  updateNavbar();
+
+  async function loadHostels(search = '', city = '') {
+    const grid = document.getElementById('hostels-grid');
+    const loading = document.getElementById('hostels-loading');
+    const empty = document.getElementById('hostels-empty');
+
+    loading.classList.remove('hidden');
+    grid.classList.add('hidden');
+    empty.classList.add('hidden');
+
+    try {
+      let qs = '';
+      if (search) qs += `search=${encodeURIComponent(search)}&`;
+      if (city)   qs += `city=${encodeURIComponent(city)}`;
+      const hostels = await api.get(`/hostels?${qs}`);
+
+      loading.classList.add('hidden');
+
+      if (!hostels.length) { empty.classList.remove('hidden'); return; }
+
+      grid.innerHTML = hostels.map(h => `
+        <div class="card" onclick="window.location='/pages/hostel-detail.html?id=${h.id}'" style="cursor:pointer;">
+          <img class="card-img" src="${h.image_url ? h.image_url : ''}"
+            onerror="this.style.background='#e2e8f0';this.src=''" alt="${h.name}" />
+          <div class="card-body">
+            <div class="d-flex justify-between align-center mb-1">
+              <h3 class="card-title" style="margin:0;">${h.name}</h3>
+              <span class="badge ${h.available_rooms > 0 ? 'badge-success' : 'badge-danger'}">
+                ${h.available_rooms > 0 ? h.available_rooms + ' available' : 'Full'}
+              </span>
+            </div>
+            <p class="card-text">📍 ${h.address}, ${h.city}</p>
+            <p class="card-text" style="margin-top:.3rem;">👤 ${h.manager_name}</p>
+            <div class="d-flex justify-between align-center mt-2">
+              <span style="font-weight:700;color:var(--primary);">GHS ${parseFloat(h.price_per_month).toLocaleString()}<small style="font-weight:400;color:var(--text-muted);">/mo</small></span>
+              <span class="btn btn-primary btn-sm">View Rooms</span>
+            </div>
+          </div>
+        </div>
+      `).join('');
+      grid.classList.remove('hidden');
+    } catch (e) {
+      loading.classList.add('hidden');
+      empty.textContent = 'Failed to load hostels. Please try again.';
+      empty.classList.remove('hidden');
+    }
+  }
+
+  function searchHostels() {
+    const search = document.getElementById('search-input').value.trim();
+    const city   = document.getElementById('city-input').value.trim();
+    loadHostels(search, city);
+  }
+
+  document.getElementById('search-input').addEventListener('keyup', e => { if (e.key === 'Enter') searchHostels(); });
+  document.getElementById('city-input').addEventListener('keyup',   e => { if (e.key === 'Enter') searchHostels(); });
+
+  loadHostels();
+</script>
+</body>
+</html>

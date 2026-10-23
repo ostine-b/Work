@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Console — HostelHub</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+
+<!-- =================== NAVBAR =================== -->
+<nav class="navbar admin-navbar">
+  <a href="/pages/admin-dashboard.html" class="navbar-brand">
+    <span>⚙️</span>
+    <span class="brand-text">HostelHub</span>
+    <span style="font-size:.7rem;font-weight:500;opacity:.5;margin-left:.4rem;">Console</span>
+  </a>
+  <div class="navbar-links">
+    <span class="nav-user" id="nav-user"></span>
+    <a href="/index.html" class="btn btn-ghost btn-sm" style="color:var(--admin-text);">View Site</a>
+    <button onclick="logout()" class="btn btn-outline btn-sm">Logout</button>
+  </div>
+</nav>
+
+<!-- =================== LAYOUT =================== -->
+<div class="admin-layout">
+
+  <!-- SIDEBAR -->
+  <aside class="admin-sidebar">
+    <div class="admin-brand">
+      <span class="dot"></span> Admin Console
+    </div>
+    <h3>Navigation</h3>
+    <button class="admin-nav-item active" onclick="showSection('overview')">
+      <span class="icon">📊</span> Overview
+    </button>
+    <button class="admin-nav-item" onclick="showSection('users')">
+      <span class="icon">👥</span> Users
+      <span id="sb-users-badge" class="badge badge-secondary hidden" style="margin-left:auto;"></span>
+    </button>
+    <button class="admin-nav-item" onclick="showSection('hostels')">
+      <span class="icon">🏨</span> Hostels
+    </button>
+    <button class="admin-nav-item" onclick="showSection('bookings')">
+      <span class="icon">📋</span> Bookings
+      <span id="sb-bookings-badge" class="badge badge-warning hidden" style="margin-left:auto;"></span>
+    </button>
+    <button class="admin-nav-item" onclick="showSection('messages')">
+      <span class="icon">💬</span> Messages
+    </button>
+    <button class="admin-nav-item" onclick="showSection('activity')">
+      <span class="icon">🕐</span> Activity
+    </button>
+    <h3 style="margin-top:1.2rem;">Account</h3>
+    <button class="admin-nav-item" onclick="showSection('profile')">
+      <span class="icon">🔒</span> Security
+    </button>
+    <div class="admin-foot">
+      Logged in as Admin
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <main class="admin-main">
+
+    <!-- ===== OVERVIEW ===== -->
+    <section id="section-overview">
+      <div class="dash-header">
+        <h2 id="welcome-msg">Platform Overview</h2>
+        <p>Real-time snapshot of HostelHub activity.</p>
+      </div>
+      <div id="stats-grid" class="stats-grid" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr));">
+        <div class="loading-overlay"><div class="spinner"></div></div>
+      </div>
+      <div class="d-flex gap-2" style="margin-top:1.5rem;flex-wrap:wrap;align-items:flex-start;">
+        <div style="flex:1;min-width:300px;">
+          <h3 style="margin-bottom:1rem;">Recent Activity</h3>
+          <div id="overview-activity"></div>
+        </div>
+        <div style="flex:1;min-width:300px;">
+          <h3 style="margin-bottom:1rem;">Pending Bookings</h3>
+          <div id="overview-bookings"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== USERS ===== -->
+    <section id="section-users" class="hidden">
+      <div class="dash-header">
+        <h2>User Management</h2>
+        <p>View, change roles, and remove platform users.</p>
+      </div>
+      <div class="admin-table-tools">
+        <input type="text" id="users-search" placeholder="🔍 Search by name or email…" oninput="filterUsers()" />
+        <select id="users-role-filter" onchange="filterUsers()">
+          <option value="">All Roles</option>
+          <option value="student">Students</option>
+          <option value="manager">Managers</option>
+          <option value="admin">Admins</option>
+        </select>
+        <span id="users-count" class="text-muted text-sm"></span>
+      </div>
+      <div id="users-loading" class="loading-overlay"><div class="spinner"></div></div>
+      <div id="users-table" class="table-wrap hidden">
+        <table>
+          <thead>
+            <tr>
+              <th>Name / Email</th>
+              <th>Role</th>
+              <th>Phone</th>
+              <th>Joined</th>
+              <th>Hostels / Bookings</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="users-body"></tbody>
+        </table>
+      </div>
+      <p id="users-empty" class="text-center text-muted hidden" style="padding:2rem;">No users found.</p>
+    </section>
+
+    <!-- ===== HOSTELS ===== -->
+    <section id="section-hostels" class="hidden">
+      <div class="dash-header">
+        <h2>Hostel Directory</h2>
+        <p>All registered hostels across the platform.</p>
+      </div>
+      <div class="admin-table-tools">
+        <input type="text" id="hostels-search" placeholder="🔍 Search hostel or city…" oninput="filterHostels()" />
+        <span id="hostels-count" class="text-muted text-sm"></span>
+      </div>
+      <div id="hostels-loading" class="loading-overlay"><div class="spinner"></div></div>
+      <div id="hostels-table" class="table-wrap hidden">
+        <table>
+          <thead>
+            <tr>
+              <th>Hostel</th>
+              <th>City</th>
+              <th>Manager</th>
+              <th>Price (GHS/mo)</th>
+              <th>Rooms</th>
+              <th>Avail.</th>
+              <th>Added</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="hostels-body"></tbody>
+        </table>
+      </div>
+      <p id="hostels-empty" class="text-center text-muted hidden" style="padding:2rem;">No hostels found.</p>
+    </section>
+
+    <!-- ===== BOOKINGS ===== -->
+    <section id="section-bookings" class="hidden">
+      <div class="dash-header">
+        <h2>Booking Management</h2>
+        <p>Monitor and override booking requests platform-wide.</p>
+      </div>
+      <div class="admin-table-tools">
+        <input type="text" id="bookings-search" placeholder="🔍 Search by student or hostel…" oninput="filterBookings()" />
+        <select id="bookings-status-filter" onchange="filterBookings()">
+          <option value="">All Statuses</option>
+          <option value="pending">Pending</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+        </select>
+        <span id="bookings-count" class="text-muted text-sm"></span>
+      </div>
+      <div id="bookings-loading" class="loading-overlay"><div class="spinner"></div></div>
+      <div id="bookings-table" class="table-wrap hidden">
+        <table>
+          <thead>
+            <tr>
+              <th>Student</th>
+              <th>Hostel / Room</th>
+              <th>Manager</th>
+              <th>Price</th>
+              <th>Status</th>
+              <th>Date</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="bookings-body"></tbody>
+        </table>
+      </div>
+      <p id="bookings-empty" class="text-center text-muted hidden" style="padding:2rem;">No bookings found.</p>
+    </section>
+
+    <!-- ===== MESSAGES ===== -->
+    <section id="section-messages" class="hidden">
+      <div class="dash-header">
+        <h2>Messaging Analytics</h2>
+        <p>Platform-wide messaging volume overview (no content is displayed).</p>
+      </div>
+      <div id="msg-stats-grid" class="stats-grid" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr));margin-bottom:1.5rem;"></div>
+      <h3 style="margin-bottom:1rem;">Recent Conversation Pairs</h3>
+      <div id="msg-conversations" class="table-wrap">
+        <div class="loading-overlay"><div class="spinner"></div></div>
+      </div>
+    </section>
+
+    <!-- ===== ACTIVITY ===== -->
+    <section id="section-activity" class="hidden">
+      <div class="dash-header">
+        <h2>Activity Feed</h2>
+        <p>Latest signups, bookings, and hostel registrations in chronological order.</p>
+      </div>
+      <div id="activity-feed-wrap"><div class="loading-overlay"><div class="spinner"></div></div></div>
+    </section>
+
+    <!-- ===== PROFILE / SECURITY ===== -->
+    <section id="section-profile" class="hidden">
+      <div class="dash-header">
+        <h2>Security Settings</h2>
+        <p>Update your administrator password.</p>
+      </div>
+      <div class="card" style="max-width:480px;padding:1.8rem;">
+        <div id="admin-profile-header" style="margin-bottom:1.4rem;"></div>
+        <div id="profile-alert"></div>
+        <form id="password-form" onsubmit="changePassword(event)">
+          <div class="form-group">
+            <label>Current Password</label>
+            <input type="password" id="p-current" placeholder="••••••••" required autocomplete="current-password" />
+          </div>
+          <div class="form-group">
+            <label>New Password</label>
+            <input type="password" id="p-new" placeholder="Min 6 characters" minlength="6" required autocomplete="new-password" />
+          </div>
+          <div class="form-group">
+            <label>Confirm New Password</label>
+            <input type="password" id="p-confirm" placeholder="Re-enter new password" required autocomplete="new-password" />
+          </div>
+          <button type="submit" class="btn btn-primary" id="pw-btn">Update Password</button>
+        </form>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+  // =========================================================
+  // Guard: admin only
+  // =========================================================
+  if (!requireAuth('admin')) throw new Error('stop');
+  const ME = getUser();
+  document.getElementById('nav-user').textContent = `⚙️ ${ME.name}`;
+  document.getElementById('welcome-msg').textContent = `Welcome back, ${ME.name}`;
+
+  // =========================================================
+  // Section router
+  // =========================================================
+  const SECTIONS = ['overview','users','hostels','bookings','messages','activity','profile'];
+
+  function showSection(name) {
+    SECTIONS.forEach(s => {
+      document.getElementById(`section-${s}`).classList.toggle('hidden', s !== name);
+    });
+    // Update sidebar active state
+    document.querySelectorAll('.admin-nav-item').forEach(btn => {
+      btn.classList.toggle('active', btn.textContent.trim().toLowerCase().startsWith(name));
+    });
+    // Lazy-load section data
+    if (name === 'users')    loadUsers();
+    if (name === 'hostels')  loadHostels();
+    if (name === 'bookings') loadBookings();
+    if (name === 'messages') loadMessageStats();
+    if (name === 'activity') loadActivity();
+    if (name === 'profile')  loadProfile();
+  }
+
+  // =========================================================
+  // OVERVIEW
+  // =========================================================
+  let _stats = null;
+  async function loadOverview() {
+    try {
+      _stats = await api.get('/admin/stats');
+      document.getElementById('stats-grid').innerHTML = `
+        <div class="stat-card">
+          <span class="stat-icon">👥</span>
+          <div class="stat-val">${_stats.users.total}</div>
+          <div class="stat-lbl">Total Users</div>
+        </div>
+        <div class="stat-card gold">
+          <span class="stat-icon">🎓</span>
+          <div class="stat-val">${_stats.users.students}</div>
+          <div class="stat-lbl">Students</div>
+        </div>
+        <div class="stat-card blue">
+          <span class="stat-icon">🏨</span>
+          <div class="stat-val">${_stats.users.managers}</div>
+          <div class="stat-lbl">Managers</div>
+        </div>
+        <div class="stat-card">
+          <span class="stat-icon">🏠</span>
+          <div class="stat-val">${_stats.hostels}</div>
+          <div class="stat-lbl">Hostels</div>
+        </div>
+        <div class="stat-card green">
+          <span class="stat-icon">🛏️</span>
+          <div class="stat-val">${_stats.available_rooms}</div>
+          <div class="stat-lbl">Available Rooms</div>
+        </div>
+        <div class="stat-card gold">
+          <span class="stat-icon">📋</span>
+          <div class="stat-val">${_stats.bookings.pending}</div>
+          <div class="stat-lbl">Pending Bookings</div>
+        </div>
+        <div class="stat-card green">
+          <span class="stat-icon">✅</span>
+          <div class="stat-val">${_stats.bookings.approved}</div>
+          <div class="stat-lbl">Approved</div>
+        </div>
+        <div class="stat-card blue">
+          <span class="stat-icon">💬</span>
+          <div class="stat-val">${_stats.messages.total}</div>
+          <div class="stat-lbl">Messages Sent</div>
+        </div>
+      `;
+
+      // Update sidebar badges
+      if (_stats.users.total) { document.getElementById('sb-users-badge').textContent = _stats.users.total; document.getElementById('sb-users-badge').classList.remove('hidden'); }
+      if (_stats.bookings.pending) { document.getElementById('sb-bookings-badge').textContent = _stats.bookings.pending; document.getElementById('sb-bookings-badge').classList.remove('hidden'); }
+
+      // Mini activity
+      const activity = await api.get('/admin/activity');
+      document.getElementById('overview-activity').innerHTML = renderActivityFeed(activity.slice(0,5));
+
+      // Mini pending bookings
+      const allBookings = await api.get('/admin/bookings');
+      const pending = allBookings.filter(b => b.status === 'pending').slice(0,5);
+      document.getElementById('overview-bookings').innerHTML = pending.length
+        ? pending.map(b => `
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:.8rem 1rem;margin-bottom:.6rem;display:flex;justify-content:space-between;align-items:center;gap:.5rem;">
+            <div>
+              <strong style="font-size:.9rem;">${escHtml(b.student_name)}</strong>
+              <div style="font-size:.78rem;color:var(--text-muted);">${escHtml(b.hostel_name)} — Room ${b.room_number}</div>
+            </div>
+            <div class="d-flex gap-1">
+              <button class="btn btn-sm btn-success" onclick="adminBookingAction('${b.id}','approved')">✓</button>
+              <button class="btn btn-sm btn-danger" onclick="adminBookingAction('${b.id}','rejected')">✗</button>
+            </div>
+          </div>`).join('')
+        : '<p class="text-muted" style="font-size:.9rem;">No pending bookings. 🎉</p>';
+    } catch (err) {
+      document.getElementById('stats-grid').innerHTML = `<p class="text-danger">Failed to load stats: ${err.message}</p>`;
+    }
+  }
+
+  // =========================================================
+  // USERS
+  // =========================================================
+  let _usersData = [];
+  async function loadUsers() {
+    document.getElementById('users-loading').classList.remove('hidden');
+    document.getElementById('users-table').classList.add('hidden');
+    document.getElementById('users-empty').classList.add('hidden');
+    try {
+      _usersData = await api.get('/admin/users');
+      renderUsers(_usersData);
+    } catch (err) {
+      document.getElementById('users-loading').classList.add('hidden');
+      document.getElementById('users-empty').textContent = 'Failed to load: ' + err.message;
+      document.getElementById('users-empty').classList.remove('hidden');
+    }
+  }
+
+  function filterUsers() {
+    const search = document.getElementById('users-search').value.toLowerCase();
+    const role   = document.getElementById('users-role-filter').value;
+    const filtered = _usersData.filter(u => {
+      const matchRole = !role || u.role === role;
+      const matchSearch = !search || u.name.toLowerCase().includes(search) || u.email.toLowerCase().includes(search);
+      return matchRole && matchSearch;
+    });
+    renderUsers(filtered);
+  }
+
+  function renderUsers(users) {
+    document.getElementById('users-loading').classList.add('hidden');
+    document.getElementById('users-count').textContent = `${users.length} user${users.length !== 1 ? 's' : ''}`;
+    if (!users.length) { document.getElementById('users-table').classList.add('hidden'); document.getElementById('users-empty').classList.remove('hidden'); return; }
+    document.getElementById('users-empty').classList.add('hidden');
+    document.getElementById('users-body').innerHTML = users.map(u => `
+      <tr>
+        <td>
+          <strong>${escHtml(u.name)}</strong>
+          <div style="font-size:.78rem;color:var(--text-muted);">${escHtml(u.email)}</div>
+        </td>
+        <td><span class="badge ${roleBadge(u.role)}">${u.role}</span></td>
+        <td style="font-size:.85rem;">${u.phone || '<span class="text-muted">—</span>'}</td>
+        <td style="font-size:.82rem;">${formatDate(u.created_at)}</td>
+        <td style="font-size:.85rem;">
+          ${u.role === 'manager' ? `🏨 ${u.hostel_count}` : `📋 ${u.booking_count}`}
+        </td>
+        <td>
+          ${u.role !== 'admin' && u.id !== ME.id ? `
+            <div class="d-flex gap-1" style="flex-wrap:wrap;">
+              ${u.role === 'student'
+                ? `<button class="btn btn-sm btn-outline" onclick="changeRole('${u.id}','manager','${escHtml(u.name)}')">→ Manager</button>`
+                : `<button class="btn btn-sm btn-outline" onclick="changeRole('${u.id}','student','${escHtml(u.name)}')">→ Student</button>`}
+              <button class="btn btn-sm btn-danger" onclick="removeUser('${u.id}','${escHtml(u.name)}')">Remove</button>
+            </div>
+          ` : '<span class="text-muted text-sm">—</span>'}
+        </td>
+      </tr>`).join('');
+    document.getElementById('users-table').classList.remove('hidden');
+  }
+
+  async function changeRole(id, role, name) {
+    if (!confirm(`Change ${name}'s role to ${role}?`)) return;
+    try {
+      await api.put(`/admin/users/${id}/role`, { role });
+      loadUsers();
+    } catch (err) { alert('Failed: ' + err.message); }
+  }
+
+  async function removeUser(id, name) {
+    if (!confirm(`Permanently remove ${name}? This also deletes their hostels, bookings, and messages.`)) return;
+    try {
+      await api.delete(`/admin/users/${id}`);
+      loadUsers();
+      loadOverview();
+    } catch (err) { alert('Failed: ' + err.message); }
+  }
+
+  // =========================================================
+  // HOSTELS
+  // =========================================================
+  let _hostelsData = [];
+  async function loadHostels() {
+    document.getElementById('hostels-loading').classList.remove('hidden');
+    document.getElementById('hostels-table').classList.add('hidden');
+    document.getElementById('hostels-empty').classList.add('hidden');
+    try {
+      _hostelsData = await api.get('/admin/hostels');
+      renderHostels(_hostelsData);
+    } catch (err) {
+      document.getElementById('hostels-loading').classList.add('hidden');
+      document.getElementById('hostels-empty').textContent = 'Failed to load: ' + err.message;
+      document.getElementById('hostels-empty').classList.remove('hidden');
+    }
+  }
+
+  function filterHostels() {
+    const search = document.getElementById('hostels-search').value.toLowerCase();
+    const filtered = _hostelsData.filter(h =>
+      h.name.toLowerCase().includes(search) || h.city.toLowerCase().includes(search) || h.manager_name.toLowerCase().includes(search)
+    );
+    renderHostels(filtered);
+  }
+
+  function renderHostels(hostels) {
+    document.getElementById('hostels-loading').classList.add('hidden');
+    document.getElementById('hostels-count').textContent = `${hostels.length} hostel${hostels.length !== 1 ? 's' : ''}`;
+    if (!hostels.length) { document.getElementById('hostels-table').classList.add('hidden'); document.getElementById('hostels-empty').classList.remove('hidden'); return; }
+    document.getElementById('hostels-empty').classList.add('hidden');
+    document.getElementById('hostels-body').innerHTML = hostels.map(h => `
+      <tr>
+        <td>
+          <strong>${escHtml(h.name)}</strong>
+          <div style="font-size:.78rem;color:var(--text-muted);">${escHtml(h.address)}</div>
+        </td>
+        <td>${escHtml(h.city)}</td>
+        <td>
+          <span>${escHtml(h.manager_name)}</span>
+          <div style="font-size:.75rem;color:var(--text-muted);">${escHtml(h.manager_email)}</div>
+        </td>
+        <td style="font-weight:600;">GHS ${parseFloat(h.price_per_month).toLocaleString()}</td>
+        <td>${h.total_rooms || 0}</td>
+        <td><span class="badge ${(h.available_rooms || 0) > 0 ? 'badge-success' : 'badge-danger'}">${h.available_rooms || 0}</span></td>
+        <td style="font-size:.82rem;">${formatDate(h.created_at)}</td>
+        <td>
+          <div class="d-flex gap-1">
+            <a href="/pages/hostel-detail.html?id=${h.id}" target="_blank" class="btn btn-sm btn-ghost">👁️</a>
+            <button class="btn btn-sm btn-danger" onclick="removeHostel('${h.id}','${escHtml(h.name)}')">Remove</button>
+          </div>
+        </td>
+      </tr>`).join('');
+    document.getElementById('hostels-table').classList.remove('hidden');
+  }
+
+  async function removeHostel(id, name) {
+    if (!confirm(`Remove hostel "${name}"? All rooms and bookings will be deleted.`)) return;
+    try {
+      await api.delete(`/admin/hostels/${id}`);
+      loadHostels();
+      loadOverview();
+    } catch (err) { alert('Failed: ' + err.message); }
+  }
+
+  // =========================================================
+  // BOOKINGS
+  // =========================================================
+  let _bookingsData = [];
+  async function loadBookings() {
+    document.getElementById('bookings-loading').classList.remove('hidden');
+    document.getElementById('bookings-table').classList.add('hidden');
+    document.getElementById('bookings-empty').classList.add('hidden');
+    try {
+      _bookingsData = await api.get('/admin/bookings');
+      renderBookings(_bookingsData);
+    } catch (err) {
+      document.getElementById('bookings-loading').classList.add('hidden');
+      document.getElementById('bookings-empty').textContent = 'Failed to load: ' + err.message;
+      document.getElementById('bookings-empty').classList.remove('hidden');
+    }
+  }
+
+  function filterBookings() {
+    const search = document.getElementById('bookings-search').value.toLowerCase();
+    const status = document.getElementById('bookings-status-filter').value;
+    const filtered = _bookingsData.filter(b => {
+      const matchStatus = !status || b.status === status;
+      const matchSearch = !search || b.student_name.toLowerCase().includes(search) || b.hostel_name.toLowerCase().includes(search);
+      return matchStatus && matchSearch;
+    });
+    renderBookings(filtered);
+  }
+
+  function renderBookings(bookings) {
+    document.getElementById('bookings-loading').classList.add('hidden');
+    document.getElementById('bookings-count').textContent = `${bookings.length} record${bookings.length !== 1 ? 's' : ''}`;
+    if (!bookings.length) { document.getElementById('bookings-table').classList.add('hidden'); document.getElementById('bookings-empty').classList.remove('hidden'); return; }
+    document.getElementById('bookings-empty').classList.add('hidden');
+    document.getElementById('bookings-body').innerHTML = bookings.map(b => `
+      <tr>
+        <td>
+          <strong>${escHtml(b.student_name)}</strong>
+          <div style="font-size:.75rem;color:var(--text-muted);">${escHtml(b.student_email)}</div>
+        </td>
+        <td>
+          <strong>${escHtml(b.hostel_name)}</strong>
+          <div style="font-size:.75rem;color:var(--text-muted);">Room ${b.room_number} (${b.room_type})</div>
+        </td>
+        <td>
+          <span>${escHtml(b.manager_name)}</span>
+          <div style="font-size:.75rem;color:var(--text-muted);">${b.hostel_city}</div>
+        </td>
+        <td style="font-weight:600;font-size:.88rem;">GHS ${parseFloat(b.price_per_month||0).toLocaleString()}</td>
+        <td><span class="badge ${statusBadge(b.status)}">${b.status}</span></td>
+        <td style="font-size:.82rem;">${formatDate(b.created_at)}</td>
+        <td>
+          ${b.status === 'pending' ? `
+            <div class="d-flex gap-1">
+              <button class="btn btn-sm btn-success" onclick="adminBookingAction('${b.id}','approved')">✓ Approve</button>
+              <button class="btn btn-sm btn-danger"  onclick="adminBookingAction('${b.id}','rejected')">✗ Reject</button>
+            </div>` : `<span class="text-muted text-sm">—</span>`}
+        </td>
+      </tr>`).join('');
+    document.getElementById('bookings-table').classList.remove('hidden');
+  }
+
+  async function adminBookingAction(id, status) {
+    try {
+      await api.put(`/admin/bookings/${id}`, { status });
+      // Refresh whichever section is visible
+      if (!document.getElementById('section-overview').classList.contains('hidden')) loadOverview();
+      if (!document.getElementById('section-bookings').classList.contains('hidden')) { _bookingsData = []; loadBookings(); }
+    } catch (err) { alert('Failed: ' + err.message); }
+  }
+
+  // =========================================================
+  // MESSAGE STATS
+  // =========================================================
+  async function loadMessageStats() {
+    document.getElementById('msg-conversations').innerHTML = '<div class="loading-overlay"><div class="spinner"></div></div>';
+    try {
+      const data = await api.get('/admin/messages/stats');
+      document.getElementById('msg-stats-grid').innerHTML = `
+        <div class="stat-card">
+          <span class="stat-icon">📨</span>
+          <div class="stat-val">${data.totals.total || 0}</div>
+          <div class="stat-lbl">Total Messages</div>
+        </div>
+        <div class="stat-card gold">
+          <span class="stat-icon">🔔</span>
+          <div class="stat-val">${data.totals.unread || 0}</div>
+          <div class="stat-lbl">Unread</div>
+        </div>
+        <div class="stat-card blue">
+          <span class="stat-icon">👤</span>
+          <div class="stat-val">${data.totals.active_senders || 0}</div>
+          <div class="stat-lbl">Active Senders</div>
+        </div>
+      `;
+      if (!data.conversations.length) {
+        document.getElementById('msg-conversations').innerHTML = '<p class="text-muted" style="padding:1.5rem;">No conversations yet.</p>';
+        return;
+      }
+      document.getElementById('msg-conversations').innerHTML = `
+        <table>
+          <thead><tr><th>Sender</th><th>Receiver</th><th>Messages</th><th>Last Message</th></tr></thead>
+          <tbody>
+            ${data.conversations.map(c => `
+              <tr>
+                <td>${escHtml(c.sender)}</td>
+                <td>${escHtml(c.receiver)}</td>
+                <td style="font-weight:600;">${c.messages}</td>
+                <td style="font-size:.82rem;">${formatDateTime(c.last_at)}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>`;
+    } catch (err) {
+      document.getElementById('msg-conversations').innerHTML = `<p class="text-danger" style="padding:1.5rem;">Failed: ${err.message}</p>`;
+    }
+  }
+
+  // =========================================================
+  // ACTIVITY FEED
+  // =========================================================
+  async function loadActivity() {
+    document.getElementById('activity-feed-wrap').innerHTML = '<div class="loading-overlay"><div class="spinner"></div></div>';
+    try {
+      const items = await api.get('/admin/activity');
+      document.getElementById('activity-feed-wrap').innerHTML = items.length
+        ? renderActivityFeed(items)
+        : '<p class="text-muted">No activity yet.</p>';
+    } catch (err) {
+      document.getElementById('activity-feed-wrap').innerHTML = `<p class="text-danger">Failed: ${err.message}</p>`;
+    }
+  }
+
+  function renderActivityFeed(items) {
+    return `<div class="activity-feed">${items.map(item => {
+      let iconClass = 'user', icon = '👤', title = '', meta = '';
+      if (item.type === 'signup') {
+        title = `<strong>${escHtml(item.label)}</strong> joined as <em>${item.role}</em>`;
+        meta  = item.sub;
+      } else if (item.type === 'booking') {
+        iconClass = 'booking'; icon = '📋';
+        title = `<strong>${escHtml(item.label)}</strong> requested a room`;
+        meta  = `${escHtml(item.sub)} — <span class="badge ${statusBadge(item.status)}">${item.status}</span>`;
+      } else if (item.type === 'hostel') {
+        iconClass = 'hostel'; icon = '🏨';
+        title = `<strong>${escHtml(item.label)}</strong> hostel registered`;
+        meta  = `by ${escHtml(item.sub)}`;
+      }
+      return `
+        <div class="activity-item">
+          <div class="a-icon ${iconClass}">${icon}</div>
+          <div class="a-body">
+            <div class="a-title">${title}</div>
+            <div class="a-meta">${meta} · ${formatDateTime(item.created_at)}</div>
+          </div>
+        </div>`;
+    }).join('')}</div>`;
+  }
+
+  // =========================================================
+  // PROFILE / SECURITY
+  // =========================================================
+  function loadProfile() {
+    document.getElementById('admin-profile-header').innerHTML = `
+      <div class="d-flex align-center gap-2" style="margin-bottom:1rem;">
+        <div style="width:50px;height:50px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.3rem;font-weight:700;flex-shrink:0;">${avatarInitial(ME.name)}</div>
+        <div>
+          <div style="font-weight:700;font-size:1.05rem;color:var(--ink);">${escHtml(ME.name)}</div>
+          <div style="font-size:.82rem;color:var(--text-muted);">${escHtml(ME.email)}</div>
+          <span class="badge badge-secondary" style="margin-top:.2rem;">Administrator</span>
+        </div>
+      </div>
+    `;
+    clearAlert(document.getElementById('profile-alert'));
+    document.getElementById('password-form').reset();
+  }
+
+  async function changePassword(e) {
+    e.preventDefault();
+    const alertBox = document.getElementById('profile-alert');
+    const btn = document.getElementById('pw-btn');
+    clearAlert(alertBox);
+
+    const newPw  = document.getElementById('p-new').value;
+    const confPw = document.getElementById('p-confirm').value;
+    if (newPw !== confPw) { showAlert(alertBox, 'New passwords do not match'); return; }
+
+    setLoading(btn, true);
+    try {
+      await api.put('/admin/password', {
+        current_password: document.getElementById('p-current').value,
+        new_password: newPw
+      });
+      showAlert(alertBox, 'Password updated successfully.', 'success');
+      document.getElementById('password-form').reset();
+    } catch (err) {
+      showAlert(alertBox, err.message);
+    }
+    setLoading(btn, false, 'Update Password');
+  }
+
+  // =========================================================
+  // HELPERS
+  // =========================================================
+  function statusBadge(s) {
+    return { pending:'badge-warning', approved:'badge-success', rejected:'badge-danger' }[s] || 'badge-info';
+  }
+  function roleBadge(r) {
+    return { student:'badge-info', manager:'badge-secondary', admin:'badge-danger' }[r] || 'badge-info';
+  }
+  function escHtml(str) {
+    return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // =========================================================
+  // INIT
+  // =========================================================
+  loadOverview();
+</script>
+</body>
+</html>

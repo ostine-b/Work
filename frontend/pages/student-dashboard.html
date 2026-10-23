@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Student Dashboard — HostelHub</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+
+<nav class="navbar">
+  <a href="/index.html" class="navbar-brand"><span>🏠</span> HostelHub</a>
+  <div class="navbar-links">
+    <span class="nav-user" id="nav-user"></span>
+    <button onclick="logout()" class="btn btn-outline btn-sm">Logout</button>
+  </div>
+</nav>
+
+<div class="dash-layout">
+
+  <!-- SIDEBAR -->
+  <aside class="dash-sidebar">
+    <h3>Student Menu</h3>
+    <button class="dash-nav-item active" id="nav-overview" onclick="showSection('overview')">
+      <span class="icon">🏠</span> Overview
+    </button>
+    <button class="dash-nav-item" id="nav-browse" onclick="showSection('browse')">
+      <span class="icon">🔍</span> Browse Hostels
+    </button>
+    <button class="dash-nav-item" id="nav-bookings" onclick="showSection('bookings')">
+      <span class="icon">📋</span> My Bookings
+    </button>
+    <button class="dash-nav-item" id="nav-messages" onclick="window.location='/pages/messages.html'">
+      <span class="icon">💬</span> Messages
+      <span id="unread-badge" class="badge badge-danger hidden" style="margin-left:auto;"></span>
+    </button>
+    <button class="dash-nav-item" id="nav-profile" onclick="showSection('profile')">
+      <span class="icon">👤</span> Profile
+    </button>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="dash-main">
+
+    <!-- OVERVIEW -->
+    <section id="section-overview">
+      <div class="dash-header">
+        <h2 id="welcome-msg">Welcome back!</h2>
+        <p>Here's a summary of your account.</p>
+      </div>
+      <div class="stats-grid" id="stats"></div>
+      <h3 style="margin-bottom:1rem;">Recent Bookings</h3>
+      <div id="recent-bookings"><div class="spinner"></div></div>
+    </section>
+
+    <!-- BROWSE HOSTELS -->
+    <section id="section-browse" class="hidden">
+      <div class="dash-header">
+        <h2>Browse Hostels</h2>
+        <p>Find and book your ideal accommodation.</p>
+      </div>
+      <div class="search-bar mb-2">
+        <input type="text" id="b-search" placeholder="Search name or address…" />
+        <input type="text" id="b-city"   placeholder="City…" style="max-width:180px;" />
+        <button class="btn btn-primary" onclick="browseHostels()">🔍 Search</button>
+      </div>
+      <div id="browse-loading" class="loading-overlay hidden"><div class="spinner"></div></div>
+      <div id="browse-grid" class="grid-2"></div>
+      <p id="browse-empty" class="text-center text-muted hidden" style="padding:2rem;">No hostels found.</p>
+    </section>
+
+    <!-- MY BOOKINGS -->
+    <section id="section-bookings" class="hidden">
+      <div class="dash-header">
+        <h2>My Bookings</h2>
+        <p>Track the status of your room requests.</p>
+      </div>
+      <div id="bookings-loading" class="loading-overlay"><div class="spinner"></div></div>
+      <div id="bookings-table" class="hidden">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Hostel</th><th>Room</th><th>Type</th><th>Price</th><th>Status</th><th>Date</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="bookings-body"></tbody>
+          </table>
+        </div>
+      </div>
+      <p id="bookings-empty" class="text-center text-muted hidden" style="padding:2rem;">You have no bookings yet. <a href="#" onclick="showSection('browse')">Browse hostels →</a></p>
+    </section>
+
+    <!-- PROFILE -->
+    <section id="section-profile" class="hidden">
+      <div class="dash-header">
+        <h2>My Profile</h2>
+        <p>Your account details.</p>
+      </div>
+      <div class="card" style="max-width:480px;padding:1.5rem;">
+        <div id="profile-info"></div>
+        <div id="profile-alert" class="mt-2"></div>
+        <form id="profile-form" onsubmit="updateProfile(event)" style="margin-top:1.2rem;">
+          <div class="form-group">
+            <label>Full Name</label>
+            <input type="text" id="p-name" required />
+          </div>
+          <div class="form-group">
+            <label>Phone Number</label>
+            <input type="tel" id="p-phone" placeholder="+233 XX XXX XXXX" />
+          </div>
+          <div class="form-group">
+            <label>Email (read-only)</label>
+            <input type="email" id="p-email" readonly style="background:var(--bg);" />
+          </div>
+          <button type="submit" class="btn btn-primary" id="profile-btn">Save Changes</button>
+        </form>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+  if (!requireAuth('student')) throw new Error('stop');
+  const ME = getUser();
+  document.getElementById('welcome-msg').textContent = `Welcome back, ${ME.name}! 👋`;
+  document.getElementById('nav-user').textContent = `👋 ${ME.name}`;
+
+  function showSection(name) {
+    ['overview','browse','bookings','profile'].forEach(s => {
+      document.getElementById(`section-${s}`).classList.toggle('hidden', s !== name);
+      document.getElementById(`nav-${s}`)?.classList.toggle('active', s === name);
+    });
+    if (name === 'browse')   browseHostels();
+    if (name === 'bookings') loadBookings();
+    if (name === 'profile')  loadProfile();
+  }
+
+  // ===== OVERVIEW =====
+  async function loadOverview() {
+    try {
+      const [bookings] = await Promise.all([api.get('/rooms/bookings/my')]);
+      const pending  = bookings.filter(b => b.status === 'pending').length;
+      const approved = bookings.filter(b => b.status === 'approved').length;
+
+      document.getElementById('stats').innerHTML = `
+        <div class="stat-card"><div class="stat-val">${bookings.length}</div><div class="stat-lbl">Total Bookings</div></div>
+        <div class="stat-card"><div class="stat-val" style="color:var(--warning);">${pending}</div><div class="stat-lbl">Pending</div></div>
+        <div class="stat-card"><div class="stat-val" style="color:var(--success);">${approved}</div><div class="stat-lbl">Approved</div></div>
+      `;
+
+      const recent = bookings.slice(0, 3);
+      document.getElementById('recent-bookings').innerHTML = recent.length
+        ? recent.map(b => `
+          <div class="card" style="padding:1rem;margin-bottom:.75rem;">
+            <div class="d-flex justify-between align-center">
+              <div>
+                <strong>${b.hostel_name}</strong> · Room ${b.room_number}
+                <div style="font-size:.85rem;color:var(--text-muted);">${b.address}</div>
+              </div>
+              <span class="badge ${statusBadge(b.status)}">${b.status}</span>
+            </div>
+          </div>`).join('')
+        : '<p class="text-muted">No bookings yet. <a href="#" onclick="showSection(\'browse\')">Find a hostel →</a></p>';
+    } catch (err) {
+      document.getElementById('stats').innerHTML = `<p class="text-danger">Failed to load overview.</p>`;
+    }
+  }
+
+  // ===== BROWSE =====
+  async function browseHostels() {
+    const grid    = document.getElementById('browse-grid');
+    const loading = document.getElementById('browse-loading');
+    const empty   = document.getElementById('browse-empty');
+    const search  = document.getElementById('b-search').value.trim();
+    const city    = document.getElementById('b-city').value.trim();
+
+    loading.classList.remove('hidden');
+    grid.innerHTML = '';
+    empty.classList.add('hidden');
+
+    try {
+      let qs = '';
+      if (search) qs += `search=${encodeURIComponent(search)}&`;
+      if (city)   qs += `city=${encodeURIComponent(city)}`;
+      const hostels = await api.get(`/hostels?${qs}`);
+      loading.classList.add('hidden');
+
+      if (!hostels.length) { empty.classList.remove('hidden'); return; }
+
+      grid.innerHTML = hostels.map(h => `
+        <div class="card" style="cursor:pointer;" onclick="window.location='/pages/hostel-detail.html?id=${h.id}'">
+          <img class="card-img" src="${h.image_url || ''}" onerror="this.style.background='#e2e8f0';this.src=''" alt="${h.name}" />
+          <div class="card-body">
+            <div class="d-flex justify-between align-center mb-1">
+              <h3 class="card-title" style="margin:0;">${h.name}</h3>
+              <span class="badge ${h.available_rooms > 0 ? 'badge-success':'badge-danger'}">
+                ${h.available_rooms > 0 ? h.available_rooms+' rooms' : 'Full'}
+              </span>
+            </div>
+            <p class="card-text">📍 ${h.address}, ${h.city}</p>
+            <p class="card-text">👤 ${h.manager_name}</p>
+            <div class="d-flex justify-between align-center mt-2">
+              <span style="font-weight:700;color:var(--primary);">GHS ${parseFloat(h.price_per_month).toLocaleString()}/mo</span>
+              <span class="btn btn-primary btn-sm">View</span>
+            </div>
+          </div>
+        </div>`).join('');
+    } catch (err) {
+      loading.classList.add('hidden');
+      empty.textContent = 'Failed to load hostels.';
+      empty.classList.remove('hidden');
+    }
+  }
+
+  // ===== BOOKINGS =====
+  async function loadBookings() {
+    const loading = document.getElementById('bookings-loading');
+    const table   = document.getElementById('bookings-table');
+    const empty   = document.getElementById('bookings-empty');
+    loading.classList.remove('hidden'); table.classList.add('hidden'); empty.classList.add('hidden');
+
+    try {
+      const bookings = await api.get('/rooms/bookings/my');
+      loading.classList.add('hidden');
+
+      if (!bookings.length) { empty.classList.remove('hidden'); return; }
+
+      document.getElementById('bookings-body').innerHTML = bookings.map(b => `
+        <tr>
+          <td><strong>${b.hostel_name}</strong><br><small class="text-muted">${b.address}</small></td>
+          <td>Room ${b.room_number}</td>
+          <td style="text-transform:capitalize;">${b.room_type}</td>
+          <td>GHS ${parseFloat(b.price_per_month).toLocaleString()}</td>
+          <td><span class="badge ${statusBadge(b.status)}">${b.status}</span></td>
+          <td>${formatDate(b.created_at)}</td>
+          <td><a href="/pages/hostel-detail.html?id=${b.hostel_id}" class="btn btn-sm btn-outline">View</a></td>
+        </tr>`).join('');
+      table.classList.remove('hidden');
+    } catch (err) {
+      loading.classList.add('hidden');
+      empty.textContent = 'Failed to load bookings.';
+      empty.classList.remove('hidden');
+    }
+  }
+
+  // ===== PROFILE =====
+  function loadProfile() {
+    document.getElementById('p-name').value  = ME.name;
+    document.getElementById('p-phone').value = ME.phone || '';
+    document.getElementById('p-email').value = ME.email;
+    document.getElementById('profile-info').innerHTML = `
+      <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem;">
+        <div class="conv-avatar" style="width:52px;height:52px;font-size:1.4rem;">${avatarInitial(ME.name)}</div>
+        <div><div style="font-weight:700;font-size:1.1rem;">${ME.name}</div>
+          <span class="badge badge-info">Student</span>
+        </div>
+      </div>`;
+  }
+
+  async function updateProfile(e) {
+    e.preventDefault();
+    const btn = document.getElementById('profile-btn');
+    const alertBox = document.getElementById('profile-alert');
+    clearAlert(alertBox);
+    setLoading(btn, true);
+    // Profile update is read-only in demo — show success message
+    setTimeout(() => {
+      const updated = { ...ME, name: document.getElementById('p-name').value.trim(), phone: document.getElementById('p-phone').value.trim() };
+      localStorage.setItem('hostel_user', JSON.stringify(updated));
+      showAlert(alertBox, 'Profile updated successfully.', 'success');
+      setLoading(btn, false, 'Save Changes');
+    }, 600);
+  }
+
+  function statusBadge(s) {
+    return { pending:'badge-warning', approved:'badge-success', rejected:'badge-danger' }[s] || 'badge-info';
+  }
+
+  // Unread message count
+  async function checkUnread() {
+    try {
+      const { count } = await api.get('/messages/unread/count');
+      const badge = document.getElementById('unread-badge');
+      if (count > 0) { badge.textContent = count; badge.classList.remove('hidden'); }
+      else badge.classList.add('hidden');
+    } catch {}
+  }
+
+  // Init
+  loadOverview();
+  checkUnread();
+  setInterval(checkUnread, 15000);
+
+  // Browse on enter
+  document.getElementById('b-search').addEventListener('keyup', e => { if (e.key === 'Enter') browseHostels(); });
+  document.getElementById('b-city').addEventListener('keyup',   e => { if (e.key === 'Enter') browseHostels(); });
+</script>
+</body>
+</html>

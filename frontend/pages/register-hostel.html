@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Register Hostel — HostelHub</title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+</head>
+<body>
+
+<nav class="navbar">
+  <a href="/index.html" class="navbar-brand"><span>🏠</span> HostelHub</a>
+  <div class="navbar-links">
+    <a href="/pages/manager-dashboard.html">← Dashboard</a>
+    <button onclick="logout()" class="btn btn-outline btn-sm">Logout</button>
+  </div>
+</nav>
+
+<div class="container section">
+  <div class="dash-header">
+    <h2>Register a New Hostel</h2>
+    <p>Fill in the details below. You can add rooms after saving the hostel.</p>
+  </div>
+
+  <div id="alert-box"></div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:2rem;" id="form-grid">
+
+    <!-- LEFT: Hostel Details -->
+    <div>
+      <div class="card" style="padding:1.5rem;">
+        <h3 style="margin-bottom:1.2rem;">🏨 Hostel Information</h3>
+        <form id="hostel-form" onsubmit="handleSubmit(event)">
+          <div class="form-group">
+            <label>Hostel Name *</label>
+            <input type="text" id="h-name" placeholder="e.g. Sunrise Student Hostel" required />
+          </div>
+          <div class="form-group">
+            <label>Description</label>
+            <textarea id="h-desc" placeholder="Describe the hostel, facilities, rules…"></textarea>
+          </div>
+          <div class="form-group">
+            <label>Street Address *</label>
+            <input type="text" id="h-address" placeholder="e.g. 12 University Road" required />
+          </div>
+          <div class="form-group">
+            <label>City *</label>
+            <input type="text" id="h-city" placeholder="e.g. Accra" required />
+          </div>
+          <div class="form-group">
+            <label>Starting Price (GHS/month) *</label>
+            <input type="number" id="h-price" placeholder="e.g. 500" min="0" step="0.01" required />
+          </div>
+          <div class="form-group">
+            <label>Amenities</label>
+            <input type="text" id="h-amenities" placeholder="e.g. WiFi, Water, Security, Kitchen" />
+            <span class="form-hint">Comma-separated list</span>
+          </div>
+
+          <h3 style="margin:1.2rem 0 .8rem;">📍 Location on Map</h3>
+          <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:.75rem;">Click the map to pin your hostel location, or enter coordinates manually.</p>
+          <div id="pick-map" style="height:260px;border-radius:var(--radius);border:1px solid var(--border);margin-bottom:.75rem;"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;">
+            <div class="form-group">
+              <label>Latitude</label>
+              <input type="number" id="h-lat" placeholder="e.g. 5.6037" step="any" />
+            </div>
+            <div class="form-group">
+              <label>Longitude</label>
+              <input type="number" id="h-lng" placeholder="e.g. -0.1870" step="any" />
+            </div>
+          </div>
+
+          <h3 style="margin:1.2rem 0 .8rem;">📷 Hostel Cover Photo</h3>
+          <div class="img-upload-wrap" onclick="document.getElementById('h-image').click()">
+            <div id="upload-hint">
+              <div style="font-size:2rem;">📷</div>
+              <p style="margin-top:.4rem;">Click to upload a cover photo</p>
+              <p style="font-size:.8rem;color:var(--text-muted);">JPG, PNG or WebP · max 5 MB</p>
+            </div>
+            <input type="file" id="h-image" accept="image/*" onchange="previewImage(this)" />
+            <img id="img-preview" class="img-preview" src="" alt="Preview" />
+          </div>
+
+          <button type="submit" class="btn btn-secondary btn-full btn-lg mt-3" id="submit-btn">
+            🏨 Register Hostel
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- RIGHT: Add Rooms -->
+    <div>
+      <div class="card" style="padding:1.5rem;" id="rooms-panel">
+        <div class="d-flex justify-between align-center mb-2">
+          <h3>🛏️ Rooms</h3>
+          <button class="btn btn-primary btn-sm" onclick="openRoomModal()">+ Add Room</button>
+        </div>
+        <p id="rooms-hint" style="font-size:.88rem;color:var(--text-muted);">
+          Save the hostel first, then add rooms here.
+        </p>
+        <div id="rooms-list" class="grid-2" style="margin-top:1rem;"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ROOM MODAL -->
+<div class="modal-overlay" id="room-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Add Room</span>
+      <button class="modal-close" onclick="closeRoomModal()">×</button>
+    </div>
+    <div id="room-alert"></div>
+    <form id="room-form" onsubmit="handleAddRoom(event)">
+      <div class="form-group">
+        <label>Room Number / Name *</label>
+        <input type="text" id="r-number" placeholder="e.g. A101" required />
+      </div>
+      <div class="form-group">
+        <label>Room Type *</label>
+        <select id="r-type" required>
+          <option value="">Select type…</option>
+          <option value="single">Single</option>
+          <option value="double">Double</option>
+          <option value="triple">Triple</option>
+          <option value="dormitory">Dormitory</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Capacity (persons)</label>
+        <input type="number" id="r-capacity" value="1" min="1" required />
+      </div>
+      <div class="form-group">
+        <label>Price (GHS/month) *</label>
+        <input type="number" id="r-price" placeholder="e.g. 450" min="0" step="0.01" required />
+      </div>
+      <div class="form-group">
+        <label>Description</label>
+        <textarea id="r-desc" placeholder="e.g. En-suite bathroom, fan, wardrobe…" style="min-height:70px;"></textarea>
+      </div>
+      <div class="form-group">
+        <label>Room Photo</label>
+        <div class="img-upload-wrap" onclick="document.getElementById('r-image').click()">
+          <div id="r-upload-hint">📷 Click to upload room photo</div>
+          <input type="file" id="r-image" accept="image/*" onchange="previewRoomImage(this)" />
+          <img id="r-img-preview" class="img-preview" src="" alt="" />
+        </div>
+      </div>
+      <div style="display:flex;gap:.75rem;margin-top:1rem;">
+        <button type="button" class="btn btn-outline btn-full" onclick="closeRoomModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary btn-full" id="add-room-btn">Add Room</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  if (!requireAuth('manager')) throw new Error('stop');
+
+  let savedHostelId = null;
+  let pickMap, pickMarker;
+
+  // Init location picker map
+  window.addEventListener('load', () => {
+    pickMap = L.map('pick-map').setView([5.6037, -0.1870], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(pickMap);
+
+    pickMap.on('click', e => {
+      const { lat, lng } = e.latlng;
+      document.getElementById('h-lat').value = lat.toFixed(6);
+      document.getElementById('h-lng').value = lng.toFixed(6);
+      if (pickMarker) pickMarker.setLatLng([lat, lng]);
+      else pickMarker = L.marker([lat, lng]).addTo(pickMap);
+    });
+
+    // Sync manual input → marker
+    ['h-lat','h-lng'].forEach(id => {
+      document.getElementById(id).addEventListener('change', syncMarker);
+    });
+  });
+
+  function syncMarker() {
+    const lat = parseFloat(document.getElementById('h-lat').value);
+    const lng = parseFloat(document.getElementById('h-lng').value);
+    if (!isNaN(lat) && !isNaN(lng)) {
+      if (pickMarker) pickMarker.setLatLng([lat, lng]);
+      else pickMarker = L.marker([lat, lng]).addTo(pickMap);
+      pickMap.setView([lat, lng], 15);
+    }
+  }
+
+  function previewImage(input) {
+    if (!input.files[0]) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = document.getElementById('img-preview');
+      img.src = e.target.result;
+      img.classList.add('show');
+      document.getElementById('upload-hint').style.display = 'none';
+    };
+    reader.readAsDataURL(input.files[0]);
+  }
+
+  function previewRoomImage(input) {
+    if (!input.files[0]) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = document.getElementById('r-img-preview');
+      img.src = e.target.result;
+      img.classList.add('show');
+      document.getElementById('r-upload-hint').style.display = 'none';
+    };
+    reader.readAsDataURL(input.files[0]);
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    const alertBox = document.getElementById('alert-box');
+    const btn = document.getElementById('submit-btn');
+    clearAlert(alertBox);
+    setLoading(btn, true);
+
+    const fd = new FormData();
+    fd.append('name',            document.getElementById('h-name').value.trim());
+    fd.append('description',     document.getElementById('h-desc').value.trim());
+    fd.append('address',         document.getElementById('h-address').value.trim());
+    fd.append('city',            document.getElementById('h-city').value.trim());
+    fd.append('price_per_month', document.getElementById('h-price').value);
+    fd.append('amenities',       document.getElementById('h-amenities').value.trim());
+    const lat = document.getElementById('h-lat').value;
+    const lng = document.getElementById('h-lng').value;
+    if (lat) fd.append('latitude',  lat);
+    if (lng) fd.append('longitude', lng);
+    const imgFile = document.getElementById('h-image').files[0];
+    if (imgFile) fd.append('image', imgFile);
+
+    try {
+      const hostel = await api.upload('/hostels', fd);
+      savedHostelId = hostel.id;
+      showAlert(alertBox, `✅ Hostel "${hostel.name}" registered! Now add rooms below.`, 'success');
+      document.getElementById('rooms-hint').textContent = 'Hostel saved. Add rooms using the button above.';
+      document.querySelector('#rooms-panel .btn').disabled = false;
+      setLoading(btn, false, '✅ Hostel Saved — Update');
+    } catch (err) {
+      showAlert(alertBox, err.message);
+      setLoading(btn, false, '🏨 Register Hostel');
+    }
+  }
+
+  function openRoomModal() {
+    if (!savedHostelId) {
+      alert('Please save the hostel first before adding rooms.');
+      return;
+    }
+    document.getElementById('room-form').reset();
+    document.getElementById('r-img-preview').classList.remove('show');
+    document.getElementById('r-upload-hint').style.display = '';
+    clearAlert(document.getElementById('room-alert'));
+    document.getElementById('room-modal').classList.add('open');
+  }
+
+  function closeRoomModal() {
+    document.getElementById('room-modal').classList.remove('open');
+  }
+
+  async function handleAddRoom(e) {
+    e.preventDefault();
+    const alertBox = document.getElementById('room-alert');
+    const btn = document.getElementById('add-room-btn');
+    clearAlert(alertBox);
+    setLoading(btn, true);
+
+    const fd = new FormData();
+    fd.append('hostel_id',       savedHostelId);
+    fd.append('room_number',     document.getElementById('r-number').value.trim());
+    fd.append('room_type',       document.getElementById('r-type').value);
+    fd.append('capacity',        document.getElementById('r-capacity').value);
+    fd.append('price_per_month', document.getElementById('r-price').value);
+    fd.append('description',     document.getElementById('r-desc').value.trim());
+    const imgFile = document.getElementById('r-image').files[0];
+    if (imgFile) fd.append('image', imgFile);
+
+    try {
+      const room = await api.upload('/rooms', fd);
+      closeRoomModal();
+      appendRoomCard(room);
+    } catch (err) {
+      showAlert(alertBox, err.message);
+      setLoading(btn, false, 'Add Room');
+    }
+  }
+
+  function appendRoomCard(room) {
+    const list = document.getElementById('rooms-list');
+    const div = document.createElement('div');
+    div.className = 'room-card';
+    div.innerHTML = `
+      ${room.image_url
+        ? `<img src="${room.image_url}" style="width:100%;height:140px;object-fit:cover;" alt="" />`
+        : `<div class="room-img">🛏️</div>`}
+      <div class="room-info">
+        <div class="d-flex justify-between align-center">
+          <strong>Room ${room.room_number}</strong>
+          <span class="badge badge-success">Available</span>
+        </div>
+        <p style="font-size:.85rem;color:var(--text-muted);text-transform:capitalize;">${room.room_type} · ${room.capacity} person(s)</p>
+        <div class="room-price">GHS ${parseFloat(room.price_per_month).toLocaleString()}<small style="font-weight:400;color:var(--text-muted);">/mo</small></div>
+      </div>`;
+    list.appendChild(div);
+  }
+
+  // Disable add-room btn until hostel is saved
+  document.querySelector('#rooms-panel .btn').disabled = true;
+</script>
+</body>
+</html>

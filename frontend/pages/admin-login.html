@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Administration — HostelHub</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+<div class="auth-wrapper">
+  <div class="auth-card">
+
+    <div class="auth-logo">
+      <a href="/index.html" style="text-decoration:none;">
+        <h1><span style="color:var(--accent);">⚙️</span> HostelHub</h1>
+      </a>
+      <p style="color:var(--accent-dark); font-weight:600; letter-spacing:.06em; text-transform:uppercase; font-size:.75rem;">Administration</p>
+    </div>
+
+    <div class="alert alert-warning" style="font-size:.82rem; margin-bottom:1.2rem;">
+      Restricted area. Authorised personnel only.
+    </div>
+
+    <div id="alert-box"></div>
+
+    <form id="login-form" onsubmit="handleLogin(event)">
+      <div class="form-group">
+        <label for="login-email">Administrator Email</label>
+        <input type="email" id="login-email" placeholder="admin@hostelhub.com" required autocomplete="username" />
+      </div>
+      <div class="form-group">
+        <label for="login-password">Password</label>
+        <input type="password" id="login-password" placeholder="••••••••" required autocomplete="current-password" />
+      </div>
+      <button type="submit" class="btn btn-primary btn-full btn-lg" id="login-btn">Sign In to Console</button>
+      <p class="text-center mt-2" style="font-size:.85rem;">
+        <a href="/index.html">← Back to HostelHub</a>
+      </p>
+    </form>
+
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+  // Already signed-in admins go straight to the console.
+  const existingUser = getUser();
+  if (existingUser && existingUser.role === 'admin') {
+    window.location.href = '/pages/admin-dashboard.html';
+  }
+
+  async function handleLogin(e) {
+    e.preventDefault();
+    const alertBox = document.getElementById('alert-box');
+    const btn = document.getElementById('login-btn');
+    clearAlert(alertBox);
+    setLoading(btn, true);
+    try {
+      const data = await api.post('/auth/login', {
+        email: document.getElementById('login-email').value.trim(),
+        password: document.getElementById('login-password').value,
+        role: 'admin'
+      });
+      setAuth(data.token, data.user);
+      window.location.href = '/pages/admin-dashboard.html';
+    } catch (err) {
+      showAlert(alertBox, err.message);
+      setLoading(btn, false, 'Sign In to Console');
+    }
+  }
+</script>
+</body>
+</html>

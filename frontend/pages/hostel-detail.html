@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hostel Details — HostelHub</title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+</head>
+<body>
+
+<nav class="navbar">
+  <a href="/index.html" class="navbar-brand"><span>🏠</span> HostelHub</a>
+  <div class="navbar-links">
+    <span class="nav-user" id="nav-user"></span>
+    <a href="/index.html">← Back</a>
+    <a href="#" id="nav-dashboard" class="hidden">Dashboard</a>
+    <button onclick="logout()" id="nav-logout" class="btn btn-outline btn-sm hidden">Logout</button>
+  </div>
+</nav>
+
+<div id="loading" class="loading-overlay" style="min-height:60vh;"><div class="spinner"></div></div>
+<div id="content" class="hidden">
+
+  <!-- HERO IMAGE -->
+  <div id="hostel-hero" style="width:100%;height:320px;background:#1e3a8a;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+    <img id="hostel-cover" src="" alt="" style="width:100%;height:100%;object-fit:cover;display:none;" />
+    <span id="hostel-cover-placeholder" style="font-size:5rem;">🏠</span>
+  </div>
+
+  <div class="container section">
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:2rem;align-items:start;">
+
+      <!-- LEFT -->
+      <div>
+        <div class="d-flex justify-between align-center mb-1">
+          <h1 id="h-name"></h1>
+          <span id="h-avail-badge" class="badge"></span>
+        </div>
+        <p id="h-address" style="font-size:1rem;color:var(--text-muted);margin-bottom:1rem;"></p>
+
+        <div id="h-amenities-wrap" class="hidden mb-2">
+          <h3 style="margin-bottom:.5rem;">Amenities</h3>
+          <div id="h-amenities" style="display:flex;gap:.5rem;flex-wrap:wrap;"></div>
+        </div>
+
+        <h3 style="margin-bottom:.5rem;">About this Hostel</h3>
+        <p id="h-desc" style="color:var(--text);line-height:1.7;"></p>
+
+        <!-- MAP -->
+        <div id="map-section" class="hidden mt-3">
+          <h3 style="margin-bottom:.75rem;">📍 Location</h3>
+          <div id="map"></div>
+        </div>
+
+        <!-- ROOMS -->
+        <div class="mt-3">
+          <h3 style="margin-bottom:.75rem;">🛏️ Available Rooms</h3>
+          <div id="rooms-grid" class="grid-3"></div>
+          <p id="rooms-empty" class="text-muted text-center hidden" style="padding:1rem;">No rooms listed yet.</p>
+        </div>
+      </div>
+
+      <!-- RIGHT: Contact Card -->
+      <div style="position:sticky;top:80px;">
+        <div class="card" style="padding:1.4rem;">
+          <h3 style="margin-bottom:1rem;">Contact Manager</h3>
+          <div style="display:flex;gap:.75rem;align-items:center;margin-bottom:1rem;">
+            <div class="conv-avatar" id="mgr-avatar"></div>
+            <div>
+              <div id="mgr-name" style="font-weight:600;"></div>
+              <div id="mgr-email" style="font-size:.85rem;color:var(--text-muted);"></div>
+            </div>
+          </div>
+          <a id="mgr-phone-link" href="#" class="btn btn-outline btn-full mb-1" style="display:none;">📞 Call Manager</a>
+          <button id="msg-btn" class="btn btn-primary btn-full" onclick="contactManager()">💬 Send Message</button>
+          <div style="border-top:1px solid var(--border);margin:1rem 0;"></div>
+          <div style="font-size:.9rem;color:var(--text-muted);">
+            <div>Starting from</div>
+            <div id="h-price" style="font-size:1.5rem;font-weight:700;color:var(--primary);"></div>
+            <div style="font-size:.82rem;">per month</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- BOOK ROOM MODAL -->
+<div class="modal-overlay" id="book-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="book-modal-title">Book Room</span>
+      <button class="modal-close" onclick="closeBookModal()">×</button>
+    </div>
+    <div id="book-alert"></div>
+    <p style="font-size:.9rem;color:var(--text-muted);margin-bottom:1rem;">Send a booking request to the manager. They will approve or reject it.</p>
+    <div class="form-group">
+      <label>Message to Manager (optional)</label>
+      <textarea id="book-message" placeholder="Introduce yourself, move-in date preference…"></textarea>
+    </div>
+    <div style="display:flex;gap:.75rem;">
+      <button class="btn btn-outline btn-full" onclick="closeBookModal()">Cancel</button>
+      <button class="btn btn-primary btn-full" id="book-btn" onclick="submitBooking()">Send Request</button>
+    </div>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  updateNavbar();
+  const params = new URLSearchParams(window.location.search);
+  const hostelId = params.get('id');
+  let currentRoomId = null;
+  let managerId = null;
+
+  if (!hostelId) window.location.href = '/index.html';
+
+  async function loadHostel() {
+    try {
+      const hostel = await api.get(`/hostels/${hostelId}`);
+      managerId = hostel.manager_id;
+
+      // Cover image
+      if (hostel.image_url) {
+        const img = document.getElementById('hostel-cover');
+        img.src = hostel.image_url;
+        img.style.display = 'block';
+        document.getElementById('hostel-cover-placeholder').style.display = 'none';
+      }
+
+      document.getElementById('h-name').textContent = hostel.name;
+      document.getElementById('h-address').textContent = `📍 ${hostel.address}, ${hostel.city}`;
+      document.getElementById('h-desc').textContent = hostel.description || 'No description provided.';
+      document.getElementById('h-price').textContent = `GHS ${parseFloat(hostel.price_per_month).toLocaleString()}`;
+      document.title = hostel.name + ' — HostelHub';
+
+      const availCount = hostel.rooms.filter(r => r.is_available).length;
+      const badge = document.getElementById('h-avail-badge');
+      badge.textContent = availCount > 0 ? `${availCount} rooms available` : 'Fully booked';
+      badge.className = `badge ${availCount > 0 ? 'badge-success' : 'badge-danger'}`;
+
+      // Amenities
+      if (hostel.amenities) {
+        const wrap = document.getElementById('h-amenities-wrap');
+        wrap.classList.remove('hidden');
+        document.getElementById('h-amenities').innerHTML = hostel.amenities.split(',')
+          .map(a => `<span class="badge badge-info">${a.trim()}</span>`).join('');
+      }
+
+      // Manager contact
+      document.getElementById('mgr-avatar').textContent = avatarInitial(hostel.manager_name);
+      document.getElementById('mgr-name').textContent = hostel.manager_name;
+      document.getElementById('mgr-email').textContent = hostel.manager_email;
+      if (hostel.manager_phone) {
+        const link = document.getElementById('mgr-phone-link');
+        link.href = `tel:${hostel.manager_phone}`;
+        link.textContent = `📞 ${hostel.manager_phone}`;
+        link.style.display = 'flex';
+      }
+
+      // Map
+      if (hostel.latitude && hostel.longitude) {
+        document.getElementById('map-section').classList.remove('hidden');
+        const map = L.map('map').setView([hostel.latitude, hostel.longitude], 15);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+        L.marker([hostel.latitude, hostel.longitude])
+          .addTo(map)
+          .bindPopup(`<strong>${hostel.name}</strong><br>${hostel.address}`)
+          .openPopup();
+      }
+
+      // Rooms
+      if (hostel.rooms && hostel.rooms.length) {
+        document.getElementById('rooms-grid').innerHTML = hostel.rooms.map(room => `
+          <div class="room-card">
+            ${room.image_url
+              ? `<img src="${room.image_url}" style="width:100%;height:160px;object-fit:cover;" alt="Room ${room.room_number}" />`
+              : `<div class="room-img" style="height:160px;display:flex;align-items:center;justify-content:center;background:#e2e8f0;font-size:2.5rem;">🛏️</div>`}
+            <div class="room-info">
+              <div class="d-flex justify-between align-center mb-1">
+                <strong>Room ${room.room_number}</strong>
+                <span class="badge ${room.is_available ? 'badge-success' : 'badge-danger'}">
+                  ${room.is_available ? 'Available' : 'Taken'}
+                </span>
+              </div>
+              <p style="font-size:.83rem;color:var(--text-muted);text-transform:capitalize;">${room.room_type} · ${room.capacity} person(s)</p>
+              ${room.description ? `<p style="font-size:.82rem;margin:.3rem 0;">${room.description}</p>` : ''}
+              <div class="d-flex justify-between align-center mt-2">
+                <span class="room-price">GHS ${parseFloat(room.price_per_month).toLocaleString()}<small style="font-weight:400;color:var(--text-muted);">/mo</small></span>
+                ${room.is_available
+                  ? `<button class="btn btn-primary btn-sm" onclick="openBookModal('${room.id}','${room.room_number}')">Book</button>`
+                  : `<span class="btn btn-sm" style="background:#e2e8f0;cursor:default;">Unavailable</span>`}
+              </div>
+            </div>
+          </div>
+        `).join('');
+      } else {
+        document.getElementById('rooms-empty').classList.remove('hidden');
+      }
+
+      document.getElementById('loading').classList.add('hidden');
+      document.getElementById('content').classList.remove('hidden');
+    } catch (err) {
+      document.getElementById('loading').innerHTML = `<p class="text-danger">Failed to load hostel: ${err.message}</p>`;
+    }
+  }
+
+  function openBookModal(roomId, roomNumber) {
+    const user = getUser();
+    if (!user) { window.location.href = '/pages/student-login.html'; return; }
+    if (user.role !== 'student') { alert('Only students can book rooms.'); return; }
+    currentRoomId = roomId;
+    document.getElementById('book-modal-title').textContent = `Book Room ${roomNumber}`;
+    document.getElementById('book-message').value = '';
+    clearAlert(document.getElementById('book-alert'));
+    document.getElementById('book-modal').classList.add('open');
+  }
+  function closeBookModal() { document.getElementById('book-modal').classList.remove('open'); }
+
+  async function submitBooking() {
+    const btn = document.getElementById('book-btn');
+    const alertBox = document.getElementById('book-alert');
+    clearAlert(alertBox);
+    setLoading(btn, true);
+    try {
+      await api.post(`/rooms/${currentRoomId}/book`, {
+        message: document.getElementById('book-message').value.trim()
+      });
+      closeBookModal();
+      showAlert(document.querySelector('.container'), 'Booking request sent! The manager will review it.', 'success');
+    } catch (err) {
+      showAlert(alertBox, err.message);
+      setLoading(btn, false, 'Send Request');
+    }
+  }
+
+  function contactManager() {
+    const user = getUser();
+    if (!user) { window.location.href = '/pages/student-login.html'; return; }
+    window.location.href = `/pages/messages.html?to=${managerId}`;
+  }
+
+  loadHostel();
+</script>
+</body>
+</html>

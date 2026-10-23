@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Messages — HostelHub</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+
+<nav class="navbar">
+  <a href="/index.html" class="navbar-brand"><span>🏠</span> HostelHub</a>
+  <div class="navbar-links">
+    <span class="nav-user" id="nav-user"></span>
+    <a href="#" id="nav-dashboard">Dashboard</a>
+    <button onclick="logout()" class="btn btn-outline btn-sm">Logout</button>
+  </div>
+</nav>
+
+<div class="msg-layout">
+
+  <!-- SIDEBAR: conversation list -->
+  <div class="msg-sidebar" id="msg-sidebar">
+    <div class="msg-sidebar-header d-flex justify-between align-center">
+      <span>💬 Messages</span>
+      <button class="btn btn-primary btn-sm" onclick="openNewConvModal()">+ New</button>
+    </div>
+    <div id="conv-loading" style="padding:1.5rem;text-align:center;"><div class="spinner"></div></div>
+    <div id="conv-list"></div>
+    <p id="conv-empty" class="text-muted text-center hidden" style="padding:2rem 1rem;font-size:.88rem;">
+      No conversations yet.<br/>Start one with a hostel manager.
+    </p>
+  </div>
+
+  <!-- MAIN: active conversation -->
+  <div class="msg-main" id="msg-main">
+    <div class="msg-empty" id="msg-placeholder">
+      <div class="icon">💬</div>
+      <p>Select a conversation to start chatting</p>
+    </div>
+
+    <!-- Chat view (hidden until conversation selected) -->
+    <div id="chat-view" class="hidden" style="display:flex;flex-direction:column;height:100%;">
+      <div class="msg-header" id="chat-header">
+        <button id="back-btn" class="btn btn-sm btn-outline" onclick="showSidebar()" style="display:none;">←</button>
+        <div class="conv-avatar" id="chat-avatar"></div>
+        <div>
+          <div id="chat-name" style="font-weight:600;"></div>
+          <div id="chat-role" style="font-size:.78rem;color:var(--text-muted);"></div>
+        </div>
+      </div>
+      <div class="msg-body" id="msg-body"></div>
+      <div class="msg-input-area">
+        <input type="text" id="msg-input" placeholder="Type a message…" onkeyup="handleKey(event)" />
+        <button class="btn btn-primary" id="send-btn" onclick="sendMessage()">Send</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- NEW CONVERSATION MODAL -->
+<div class="modal-overlay" id="new-conv-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Start New Conversation</span>
+      <button class="modal-close" onclick="closeNewConvModal()">×</button>
+    </div>
+    <div id="new-conv-alert"></div>
+    <p style="font-size:.88rem;color:var(--text-muted);margin-bottom:1rem;">
+      Select a hostel manager to message:
+    </p>
+    <div id="managers-list" style="display:flex;flex-direction:column;gap:.5rem;max-height:320px;overflow-y:auto;">
+      <div style="text-align:center;padding:1rem;"><div class="spinner"></div></div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+  if (!requireAuth()) throw new Error('stop');
+
+  const ME = getUser();
+  let activeUserId = null;
+  let pollInterval = null;
+
+  // Set dashboard link
+  updateNavbar();
+  document.getElementById('nav-dashboard').href =
+    ME.role === 'manager' ? '/pages/manager-dashboard.html' : '/pages/student-dashboard.html';
+
+  // Pre-select conversation from URL param
+  const urlParams = new URLSearchParams(window.location.search);
+  const preselect = urlParams.get('to');
+
+  async function loadConversations() {
+    const convList  = document.getElementById('conv-list');
+    const convLoading = document.getElementById('conv-loading');
+    const convEmpty = document.getElementById('conv-empty');
+
+    try {
+      const convs = await api.get('/messages/conversations');
+      convLoading.style.display = 'none';
+
+      if (!convs.length && !preselect) {
+        convEmpty.classList.remove('hidden');
+        return;
+      }
+
+      convList.innerHTML = convs.map(c => `
+        <div class="conversation-item ${c.other_user_id === activeUserId ? 'active' : ''}"
+             id="conv-${c.other_user_id}"
+             onclick="openConversation('${c.other_user_id}', '${escHtml(c.other_user_name)}', '${c.other_user_role}')">
+          <div class="conv-avatar">${avatarInitial(c.other_user_name)}</div>
+          <div style="flex:1;min-width:0;">
+            <div class="conv-name">${escHtml(c.other_user_name)}</div>
+            <div class="conv-preview">${escHtml(c.last_message || '')}</div>
+          </div>
+          ${c.unread_count > 0 ? `<div class="unread-dot">${c.unread_count}</div>` : ''}
+        </div>
+      `).join('');
+    } catch (err) {
+      convLoading.innerHTML = `<p class="text-danger" style="font-size:.85rem;padding:.5rem;">Failed to load conversations</p>`;
+    }
+  }
+
+  async function openConversation(userId, name, role) {
+    activeUserId = userId;
+
+    // Mobile: hide sidebar, show main
+    document.getElementById('msg-sidebar').classList.add('hidden-mobile');
+    document.getElementById('msg-main').classList.add('active');
+    document.getElementById('back-btn').style.display = 'flex';
+
+    // Update header
+    document.getElementById('chat-avatar').textContent = avatarInitial(name);
+    document.getElementById('chat-name').textContent = name;
+    document.getElementById('chat-role').textContent = role.charAt(0).toUpperCase() + role.slice(1);
+    document.getElementById('msg-placeholder').classList.add('hidden');
+    document.getElementById('chat-view').classList.remove('hidden');
+    document.getElementById('chat-view').style.display = 'flex';
+
+    // Highlight active conv
+    document.querySelectorAll('.conversation-item').forEach(el => el.classList.remove('active'));
+    const el = document.getElementById(`conv-${userId}`);
+    if (el) { el.classList.add('active'); el.querySelector('.unread-dot')?.remove(); }
+
+    await fetchMessages(userId);
+
+    // Poll every 5s
+    clearInterval(pollInterval);
+    pollInterval = setInterval(() => fetchMessages(userId, false), 5000);
+  }
+
+  async function fetchMessages(userId, scrollToBottom = true) {
+    try {
+      const msgs = await api.get(`/messages/${userId}`);
+      const body = document.getElementById('msg-body');
+      body.innerHTML = msgs.length
+        ? msgs.map(m => {
+            const mine = m.sender_id === ME.id;
+            return `
+              <div style="display:flex;flex-direction:column;align-items:${mine ? 'flex-end' : 'flex-start'};">
+                <div class="msg-bubble ${mine ? 'mine' : 'theirs'}">${escHtml(m.content)}</div>
+                <div class="msg-time" style="text-align:${mine ? 'right' : 'left'};color:var(--text-muted);">
+                  ${formatDateTime(m.created_at)}
+                </div>
+              </div>`;
+          }).join('')
+        : `<div class="msg-empty"><div class="icon">👋</div><p>Say hello to start the conversation!</p></div>`;
+
+      if (scrollToBottom) body.scrollTop = body.scrollHeight;
+    } catch (err) {
+      console.error('Failed to fetch messages', err);
+    }
+  }
+
+  async function sendMessage() {
+    if (!activeUserId) return;
+    const input = document.getElementById('msg-input');
+    const content = input.value.trim();
+    if (!content) return;
+
+    const btn = document.getElementById('send-btn');
+    btn.disabled = true;
+    input.value = '';
+
+    try {
+      await api.post('/messages', { receiver_id: activeUserId, content });
+      await fetchMessages(activeUserId);
+    } catch (err) {
+      input.value = content; // restore on failure
+      alert('Failed to send message: ' + err.message);
+    } finally {
+      btn.disabled = false;
+      input.focus();
+    }
+  }
+
+  function handleKey(e) {
+    if (e.key === 'Enter') sendMessage();
+  }
+
+  function showSidebar() {
+    document.getElementById('msg-sidebar').classList.remove('hidden-mobile');
+    document.getElementById('msg-main').classList.remove('active');
+  }
+
+  // New Conversation Modal
+  async function openNewConvModal() {
+    document.getElementById('new-conv-modal').classList.add('open');
+    try {
+      const managers = await api.get('/messages/managers/list');
+      const list = document.getElementById('managers-list');
+      if (!managers.length) {
+        list.innerHTML = '<p class="text-muted text-center">No managers registered yet.</p>';
+        return;
+      }
+      list.innerHTML = managers.map(m => `
+        <div class="conversation-item" style="border-radius:8px;border:1px solid var(--border);"
+             onclick="startConvWith('${m.id}','${escHtml(m.name)}','manager')">
+          <div class="conv-avatar">${avatarInitial(m.name)}</div>
+          <div>
+            <div class="conv-name">${escHtml(m.name)}</div>
+            <div style="font-size:.82rem;color:var(--text-muted);">${m.hostel_name ? '🏠 ' + escHtml(m.hostel_name) : 'No hostel listed'}</div>
+          </div>
+        </div>
+      `).join('');
+    } catch (err) {
+      document.getElementById('managers-list').innerHTML =
+        `<p class="text-danger">Failed to load managers: ${err.message}</p>`;
+    }
+  }
+
+  function closeNewConvModal() {
+    document.getElementById('new-conv-modal').classList.remove('open');
+  }
+
+  function startConvWith(userId, name, role) {
+    closeNewConvModal();
+    // Add temporary entry to conv list if not already there
+    const existing = document.getElementById(`conv-${userId}`);
+    if (!existing) {
+      const convList = document.getElementById('conv-list');
+      const div = document.createElement('div');
+      div.className = 'conversation-item';
+      div.id = `conv-${userId}`;
+      div.onclick = () => openConversation(userId, name, role);
+      div.innerHTML = `
+        <div class="conv-avatar">${avatarInitial(name)}</div>
+        <div><div class="conv-name">${escHtml(name)}</div><div class="conv-preview">New conversation</div></div>`;
+      convList.prepend(div);
+      document.getElementById('conv-empty').classList.add('hidden');
+    }
+    openConversation(userId, name, role);
+  }
+
+  function escHtml(str) {
+    return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // Init
+  (async () => {
+    await loadConversations();
+    if (preselect) {
+      // Fetch user info then open
+      try {
+        const managers = await api.get('/messages/managers/list');
+        const mgr = managers.find(m => m.id === preselect);
+        if (mgr) startConvWith(mgr.id, mgr.name, 'manager');
+        else openConversation(preselect, 'Manager', 'manager');
+      } catch { openConversation(preselect, 'Manager', 'manager'); }
+    }
+  })();
+</script>
+</body>
+</html>
